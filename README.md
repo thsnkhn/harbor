@@ -1,21 +1,38 @@
-<img src=".github/assets/logo-rounded.png" alt="Harbor logo" width="112" />
+<div align="center">
+  <img src=".github/assets/logo-rounded.png" alt="Harbor logo" width="112" />
 
-# Harbor
+  <h1>Harbor</h1>
 
-[![Latest Release](https://img.shields.io/github/v/release/tahseen-kakar/harbor?display_name=tag&label=release)](https://github.com/tahseen-kakar/harbor/releases/latest)
-[![License](https://img.shields.io/github/license/tahseen-kakar/harbor)](https://github.com/tahseen-kakar/harbor/blob/main/LICENSE)
-[![Platform](https://img.shields.io/badge/platform-macOS%2015.6%2B-111111)](https://github.com/tahseen-kakar/harbor/releases/latest)
-[![Status](https://img.shields.io/badge/status-actively%20maintained-2ea043)](https://github.com/tahseen-kakar/harbor/commits/main)
+  <p><strong>A beautiful, fully native macOS download manager built for real Mac workflows.</strong></p>
 
-Harbor is a beautiful, fully native macOS download manager built for real Mac workflows.
+  <p>
+    <a href="https://github.com/tahseen-kakar/harbor/releases/latest">
+      <img src="https://img.shields.io/badge/download-latest%20DMG-007AFF?style=for-the-badge&logo=apple&logoColor=white" alt="Download latest DMG" />
+    </a>
+  </p>
 
-It is free, local-first, privacy-friendly, and designed to feel like a proper Mac app from day one. No accounts. No sign-in. No hosted backend. No subscription mechanics. Just a fast native downloader that runs on your Mac.
+  <p>
+    <a href="https://github.com/tahseen-kakar/harbor/releases/latest">
+      <img src="https://img.shields.io/github/v/release/tahseen-kakar/harbor?display_name=tag&label=release" alt="Latest release" />
+    </a>
+    <a href="https://github.com/tahseen-kakar/harbor/blob/main/LICENSE">
+      <img src="https://img.shields.io/github/license/tahseen-kakar/harbor" alt="License" />
+    </a>
+    <a href="https://github.com/tahseen-kakar/harbor/releases/latest">
+      <img src="https://img.shields.io/badge/platform-macOS%2015.6%2B-111111" alt="Platform macOS 15.6+" />
+    </a>
+    <a href="https://github.com/tahseen-kakar/harbor/commits/main">
+      <img src="https://img.shields.io/badge/status-actively%20maintained-2ea043" alt="Actively maintained" />
+    </a>
+  </p>
 
-[Download the latest DMG](https://github.com/tahseen-kakar/harbor/releases/latest)
+  <p>
+    Free, local-first, privacy-friendly, and designed to feel like a proper Mac app from day one.
+    No accounts. No sign-in. No hosted backend. No subscription mechanics.
+  </p>
 
-<p align="center">
   <img src=".github/assets/harbor-screenshot-rounded.png" alt="Harbor screenshot" />
-</p>
+</div>
 
 ## Why Harbor
 
