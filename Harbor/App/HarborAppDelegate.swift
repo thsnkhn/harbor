@@ -2,6 +2,10 @@ import AppKit
 
 @MainActor
 final class HarborAppDelegate: NSObject, NSApplicationDelegate {
+    func applicationShouldOpenUntitledFile(_ sender: NSApplication) -> Bool {
+        false
+    }
+
     func application(_ application: NSApplication, open urls: [URL]) {
         handleOpenRequest(urls)
     }

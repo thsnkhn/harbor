@@ -17,7 +17,7 @@ struct HarborApp: App {
     }
 
     var body: some Scene {
-        WindowGroup {
+        WindowGroup("Harbor", id: "main") {
             RootView(center: center, settings: settings)
                 .frame(minWidth: 1_040, minHeight: 680)
                 .task {
@@ -28,7 +28,10 @@ struct HarborApp: App {
                     center.installExternalOpenHandlerIfNeeded()
                     await center.initializeIfNeeded()
                 }
+                // TODO: Revisit this if Harbor intentionally supports multiple main windows later.
+                .handlesExternalEvents(preferring: ["*"], allowing: ["*"])
         }
+        .handlesExternalEvents(matching: ["*"])
         .defaultSize(width: 1_320, height: 820)
         .defaultPosition(.center)
         .windowToolbarStyle(.unified)
