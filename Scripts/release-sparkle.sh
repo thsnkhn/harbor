@@ -2,6 +2,12 @@
 
 set -eu
 
+# Release preflight:
+# 1. Export the notarized app bundle to build/export/Harbor.app.
+# 2. Create a signed annotated tag, for example:
+#    git tag -s v1.2.4 -m "Harbor 1.2.4"
+# 3. Push the tag and create the matching GitHub release before running this script.
+
 PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 PROJECT_NAME="Harbor"
 GITHUB_REPO="${GITHUB_REPO:-tahseen-kakar/harbor}"
