@@ -55,7 +55,14 @@ If you want a downloader that respects the platform, respects your machine, and 
 
 ## Download
 
-The easiest way to get Harbor is with the latest DMG:
+Install with Homebrew:
+
+```sh
+brew tap tahseen-kakar/harbor
+brew install --cask harbor
+```
+
+Or download the latest DMG:
 
 - Download the [latest DMG](https://github.com/tahseen-kakar/harbor/releases/latest/download/Harbor.dmg)
 - Drag `Harbor.app` into `Applications`
