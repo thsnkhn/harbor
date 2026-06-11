@@ -86,28 +86,31 @@ struct SettingsView: View {
 }
 
 private struct SpeedLimitRow: View {
-    let title: String
+    let title: LocalizedStringResource
     @Binding var isEnabled: Bool
     @Binding var kilobytesPerSecond: Int
 
     var body: some View {
-        LabeledContent(title) {
+        LabeledContent {
             HStack(spacing: 8) {
                 Toggle("Limit", isOn: $isEnabled)
                     .labelsHidden()
-
+                
                 TextField(
                     "Speed",
                     value: $kilobytesPerSecond,
                     format: .number
                 )
                 .monospacedDigit()
-                .frame(width: 92)
+                .frame(width: 110)
                 .disabled(isEnabled == false)
-
+                
                 Text("KB/s")
                     .foregroundStyle(.secondary)
             }
+        } label: {
+            Text(title)
+                .lineLimit(1)
         }
         .onChange(of: kilobytesPerSecond) { _, newValue in
             let clampedValue = AppSettingsStore.clampedSpeedLimitKilobytes(newValue)
