@@ -11,24 +11,24 @@ enum DownloadStatus: String, Codable, CaseIterable, Sendable {
     case failed
     case cancelled
 
-    var title: String {
+    var title: LocalizedStringResource {
         switch self {
         case .queued:
-            "Queued"
+            LocalizedStringResource("status.queued", defaultValue: "Queued")
         case .preparing:
-            "Preparing"
+            LocalizedStringResource("status.preparing", defaultValue: "Preparing")
         case .downloading:
-            "Downloading"
+            LocalizedStringResource("status.downloading", defaultValue: "Downloading")
         case .browserSessionRequired:
-            "Browser Session Required"
+            LocalizedStringResource("status.needsBrowser", defaultValue: "Browser Session Required")
         case .paused:
-            "Paused"
+            LocalizedStringResource("status.paused", defaultValue: "Paused")
         case .completed:
-            "Completed"
+            LocalizedStringResource("status.completed", defaultValue: "Completed")
         case .failed:
-            "Failed"
+            LocalizedStringResource("status.failed", defaultValue: "Failed")
         case .cancelled:
-            "Cancelled"
+            LocalizedStringResource("status.cancelled", defaultValue: "Cancelled")
         }
     }
 
@@ -432,7 +432,7 @@ final class DownloadItem: Identifiable {
 
         switch status {
         case .queued, .preparing, .downloading:
-            return "Waiting"
+            return String(localized: "Waiting", comment: "Speed status fallback")
         case .browserSessionRequired, .paused, .completed, .failed, .cancelled:
             return "-"
         }

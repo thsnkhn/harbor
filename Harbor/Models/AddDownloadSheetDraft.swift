@@ -6,7 +6,7 @@ enum AddDownloadEntryMode: String, CaseIterable, Identifiable, Sendable {
 
     var id: String { rawValue }
 
-    var title: String {
+    var title: LocalizedStringResource {
         switch self {
         case .linkOrMagnet:
             "Link or Magnet"

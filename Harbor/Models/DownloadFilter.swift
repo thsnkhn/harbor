@@ -10,20 +10,20 @@ enum DownloadFilter: String, CaseIterable, Identifiable, Hashable {
 
     var id: String { rawValue }
 
-    var title: String {
+    var title: LocalizedStringResource {
         switch self {
         case .all:
-            "All Downloads"
+            LocalizedStringResource("sidebar.category.all", defaultValue: "All Downloads")
         case .active:
-            "Active"
+            LocalizedStringResource("sidebar.category.active", defaultValue: "Active")
         case .paused:
-            "Paused"
+            LocalizedStringResource("sidebar.category.paused", defaultValue: "Paused")
         case .completed:
-            "Completed"
+            LocalizedStringResource("sidebar.category.completed", defaultValue: "Completed")
         case .failed:
-            "Failed"
+            LocalizedStringResource("sidebar.category.failed", defaultValue: "Failed")
         case .cancelled:
-            "Cancelled"
+            LocalizedStringResource("sidebar.category.cancelled", defaultValue: "Cancelled")
         }
     }
 
@@ -89,18 +89,18 @@ enum DownloadSortMode: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
-    var title: String {
+    var title: LocalizedStringResource {
         switch self {
         case .newest:
-            "Newest First"
+            LocalizedStringResource("sort.mode.newest", defaultValue: "Newest First")
         case .oldest:
-            "Oldest First"
+            LocalizedStringResource("sort.mode.oldest", defaultValue: "Oldest First")
         case .name:
-            "Name"
+            LocalizedStringResource("sort.mode.name", defaultValue: "Name")
         case .progress:
-            "Progress"
+            LocalizedStringResource("sort.mode.progress", defaultValue: "Progress")
         case .speed:
-            "Speed"
+            LocalizedStringResource("sort.mode.speed", defaultValue: "Speed")
         }
     }
 }

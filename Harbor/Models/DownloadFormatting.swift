@@ -31,7 +31,7 @@ enum DownloadFormatting {
 
     static func speedString(_ bytesPerSecond: Double) -> String {
         guard bytesPerSecond > 0 else {
-            return "Waiting"
+            return String(localized: "Waiting", comment: "Speed status fallback")
         }
 
         return "\(byteFormatter().string(fromByteCount: Int64(bytesPerSecond.rounded()))) / s"
@@ -49,13 +49,15 @@ enum DownloadFormatting {
         guard expectedBytes > 0 else {
             return byteString(bytesWritten)
         }
+        
+        let template = String(localized: "progress.format", defaultValue: "%@ of %@", comment: "Download progress, e.g. '90 KB of 90 KB'")
 
-        return "\(byteString(bytesWritten)) of \(byteString(expectedBytes))"
+        return String(format: template, byteString(bytesWritten), byteString(expectedBytes))
     }
 
     static func dateString(_ date: Date?) -> String {
         guard let date else {
-            return "Not available"
+            return String(localized: "Not available", comment: "Date fallback status")
         }
 
         return dateFormatter().string(from: date)
