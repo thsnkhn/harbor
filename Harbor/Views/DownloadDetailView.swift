@@ -186,9 +186,9 @@ private struct DownloadHeader: View {
         }
     }
 
-    private var progressLabel: String {
+    private var progressLabel: LocalizedStringResource {
         if let progressValue = item.progressValue {
-            return "\(Int((progressValue * 100).rounded()))%"
+            return LocalizedStringResource(stringLiteral: progressValue.formatted(.percent.precision(.fractionLength(0))))
         }
 
         return item.status == .preparing ? "Starting..." : item.status.title
@@ -440,7 +440,7 @@ private struct DownloadStorageSection: View {
 }
 
 private struct DownloadValueRow: View {
-    let title: String
+    let title: LocalizedStringResource
     let value: String
 
     var body: some View {
@@ -643,26 +643,26 @@ private struct DownloadActivityRow: View {
 }
 
 private extension DownloadActivityKind {
-    var title: String {
+    var title: LocalizedStringResource {
         switch self {
         case .added:
-            "Added"
+            LocalizedStringResource("Added", comment: "Timeline activity status")
         case .queued:
-            "Queued"
+            LocalizedStringResource("Queued", comment: "Timeline activity status")
         case .started:
-            "Started"
+            LocalizedStringResource("Started", comment: "Timeline activity status")
         case .resumed:
-            "Resumed"
+            LocalizedStringResource("Resumed", comment: "Timeline activity status")
         case .paused:
-            "Paused"
+            LocalizedStringResource("Paused", comment: "Timeline activity status")
         case .browserSessionRequired:
-            "Needs Browser"
+            LocalizedStringResource("Needs Browser", comment: "Timeline activity status")
         case .completed:
-            "Completed"
+            LocalizedStringResource("Completed", comment: "Timeline activity status")
         case .failed:
-            "Failed"
+            LocalizedStringResource("Failed", comment: "Timeline activity status")
         case .cancelled:
-            "Cancelled"
+            LocalizedStringResource("Cancelled", comment: "Timeline activity status")
         }
     }
 
@@ -729,7 +729,7 @@ private extension DownloadActivityKind {
 }
 
 private struct DownloadDetailSection<Content: View>: View {
-    let title: String
+    let title: LocalizedStringResource
     @ViewBuilder let content: () -> Content
 
     var body: some View {

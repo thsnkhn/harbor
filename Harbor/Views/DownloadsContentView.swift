@@ -62,7 +62,7 @@ struct DownloadsContentView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    private var emptyTitle: String {
+    private var emptyTitle: LocalizedStringResource {
         switch center.selectedFilter {
         case .all:
             "No Downloads Yet"
@@ -83,7 +83,7 @@ struct DownloadsContentView: View {
         center.selectedFilter.systemImage
     }
 
-    private var emptyDescription: String {
+    private var emptyDescription: LocalizedStringResource {
         switch center.selectedFilter {
         case .all:
             "Paste an HTTP or HTTPS URL to start building your queue."
