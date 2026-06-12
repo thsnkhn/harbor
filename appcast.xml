@@ -3,6 +3,21 @@
     <channel>
         <title>Harbor</title>
         <item>
+            <title>1.2.5</title>
+            <pubDate>Sat, 13 Jun 2026 01:20:31 +0500</pubDate>
+            <sparkle:version>14</sparkle:version>
+            <sparkle:shortVersionString>1.2.5</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.6</sparkle:minimumSystemVersion>
+            <enclosure url="https://tahseen-kakar.github.io/harbor/updates/Harbor-1.2.5.dmg" length="9129949" type="application/octet-stream" sparkle:edSignature="lXBblS0MJN23qtwxh5lCJivpOG+Fz8neRNq4GpTjhHkxtlbuQv8I2aPotM+c+/NK3VlI5yzINsF0+Y85rBgTCQ=="/>
+            <sparkle:deltas>
+                <enclosure url="https://tahseen-kakar.github.io/harbor/updates/Harbor14-13.delta" sparkle:deltaFrom="13" length="192186" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="ECHnbwLOMaW5W64wpHCsZvBwKD3eO3mfEDGvPngOuXMTw3ulZpDromgArVa7iuz6cAk0/VNr8DzOCkIgSUVxAQ=="/>
+                <enclosure url="https://tahseen-kakar.github.io/harbor/updates/Harbor14-12.delta" sparkle:deltaFrom="12" length="233794" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="PAZaptZkece9fqvBmtxYJODrPWo+FjFCtKK0Dxej6Z5XDEO0plkvaBK0zUZLZ2nVgGGTofptL5TJ3VKarWXQBg=="/>
+                <enclosure url="https://tahseen-kakar.github.io/harbor/updates/Harbor14-11.delta" sparkle:deltaFrom="11" length="237202" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="QooUV/k5cMMFXc2VM3R6OJXNoJMIHH9AUwwgNAcu9KiBxp13+vsygmwNmzal4bLV634tZYmdD57XtveJgHv6Ag=="/>
+                <enclosure url="https://tahseen-kakar.github.io/harbor/updates/Harbor14-10.delta" sparkle:deltaFrom="10" length="269050" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="HmyekdY2M9dKOO8WtRaf/YpTQ/95vqCgtVfTr7B8Pce104ADo9YaUOsH/83mLZzEonHHjP6CrAGGKPE/OvlWBg=="/>
+                <enclosure url="https://tahseen-kakar.github.io/harbor/updates/Harbor14-9.delta" sparkle:deltaFrom="9" length="2121990" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="l6TI5itCryhcUrWCun/xPPIzbGUE2vbS5XMgb+B3enNiah4iuIXB9iAty5IknF6vsEg1sUhyS6vVHVVnQmHCDg=="/>
+            </sparkle:deltas>
+        </item>
+        <item>
             <title>1.2.4</title>
             <pubDate>Wed, 03 Jun 2026 01:43:06 +0500</pubDate>
             <sparkle:version>13</sparkle:version>
@@ -32,22 +47,6 @@
                 <enclosure url="https://tahseen-kakar.github.io/harbor/updates/Harbor12-8.delta" sparkle:deltaFrom="8" length="2171526" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="4OnzfdbQQnAYn6trTYAu+NjyigcDzv0WFq+b/s7eFqRK5Oa03CziewLLznGPtNX8WmSPg/6uQQ73E09VTn2BBw=="/>
                 <enclosure url="https://tahseen-kakar.github.io/harbor/updates/Harbor12-7.delta" sparkle:deltaFrom="7" length="2173822" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="zoX+apbXDVMLA+Q2EKdsZAw6qVWhUXdP+WWl822Wkg8XDlPMoh89BqECz/HBZiGUr1at7Egug002kYSRfDT3CQ=="/>
             </sparkle:deltas>
-        </item>
-        <item>
-            <title>1.2.2</title>
-            <pubDate>Sat, 30 May 2026 00:09:41 +0500</pubDate>
-            <sparkle:version>11</sparkle:version>
-            <sparkle:shortVersionString>1.2.2</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>15.6</sparkle:minimumSystemVersion>
-            <enclosure url="https://tahseen-kakar.github.io/harbor/updates/Harbor-1.2.2.dmg" length="9084258" type="application/octet-stream" sparkle:edSignature="sZh/Awf3ayj3dU3hZWpYAxXKBoZDUkn+EUNO+UfJojSkznhECWM2iT95LiS1+7r3CnXUaMa9ez0304sVUMAPDA=="/>
-            <sparkle:deltas>
-                <enclosure url="https://tahseen-kakar.github.io/harbor/updates/Harbor11-10.delta" sparkle:deltaFrom="10" length="160234" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="LKsB/s3sR26CbsEm6ScsbbcV6Y75CjySriygQKjx78K0mzguQvG0EVg0GXWFvIq6J5VNKwyi2jom92VRaJs8Bg=="/>
-                <enclosure url="https://tahseen-kakar.github.io/harbor/updates/Harbor11-9.delta" sparkle:deltaFrom="9" length="2022770" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="YNPzjSi+2aHXLvgn9VgpSzlCaqQWjHwHR5V6r+MYp4kXTa7Bnf+HqDQmkfmkjuDIWJA2resp0gYj2pAmKhAYBA=="/>
-                <enclosure url="https://tahseen-kakar.github.io/harbor/updates/Harbor11-8.delta" sparkle:deltaFrom="8" length="2168174" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="S7A2OfMw8vW7H02mhxOqSv/hV4HKHH9/cCIFe98fqXopsx9PxruzGtuS3z5jUK2gw1BuKXBXwiWLp8WNqv1rBw=="/>
-                <enclosure url="https://tahseen-kakar.github.io/harbor/updates/Harbor11-7.delta" sparkle:deltaFrom="7" length="2168122" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="zRCYzzvh+870TCCGgrqzb5f0fBauOVDeETiUqVYye/6OpzLYNBbFdPmnSIdGQVnl3nVToPPd2jvDTp2uuIAyDQ=="/>
-                <enclosure url="https://tahseen-kakar.github.io/harbor/updates/Harbor11-6.delta" sparkle:deltaFrom="6" length="2196602" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="Z+CuVwC2ErHfzVHSfOihwA7BpCHnROERhy3xXrA6ZScswC5mIeLtujBxbJ6UxAx+mcVTb+OACxPHGfxo59SECA=="/>
-            </sparkle:deltas>
-            <sparkle:releaseNotesLink>https://tahseen-kakar.github.io/harbor/updates/Harbor-1.2.2.md</sparkle:releaseNotesLink>
         </item>
     </channel>
 </rss>
