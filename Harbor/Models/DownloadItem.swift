@@ -445,6 +445,10 @@ final class DownloadItem: Identifiable {
         )
     }
 
+    var displayLastError: String? {
+        lastError.map { Self.displayErrorMessage(from: $0) }
+    }
+
     var isRunning: Bool {
         status.isRunning
     }
@@ -498,5 +502,45 @@ final class DownloadItem: Identifiable {
                 activityEvents.removeFirst()
             }
         }
+    }
+
+    static func displayErrorMessage(from rawMessage: String) -> String {
+        if let existingPath = existingTorrentDestinationPath(from: rawMessage) {
+            return """
+            An item with this name already exists in the destination. Harbor stopped the torrent to avoid overwriting or truncating it.
+
+            Existing item:
+            \(existingPath)
+
+            Move, rename, or delete the existing item, then retry the download.
+            """
+        }
+
+        return rawMessage
+    }
+
+    private static func existingTorrentDestinationPath(from rawMessage: String) -> String? {
+        let pathStartMarker = "File "
+        let pathEndMarker = " exists, but a control file"
+
+        guard let pathStart = rawMessage.range(
+            of: pathStartMarker,
+            options: .caseInsensitive
+        )?.upperBound else {
+            return nil
+        }
+
+        guard let pathEnd = rawMessage.range(
+            of: pathEndMarker,
+            options: .caseInsensitive,
+            range: pathStart ..< rawMessage.endIndex
+        )?.lowerBound else {
+            return nil
+        }
+
+        let path = rawMessage[pathStart ..< pathEnd]
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        return path.isEmpty ? nil : path
     }
 }

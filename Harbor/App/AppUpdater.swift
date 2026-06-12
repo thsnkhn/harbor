@@ -10,6 +10,7 @@ final class AppUpdater: ObservableObject {
     private let currentBundle: Bundle
     private let previewVersionLabel: String?
     private let updaterController: SPUStandardUpdaterController?
+    private var didCheckForUpdatesOnLaunch = false
     private var observations: [NSKeyValueObservation] = []
 
     init(bundle: Bundle = .main) {
@@ -34,6 +35,7 @@ final class AppUpdater: ObservableObject {
         self.canCheckForUpdates = controller.updater.canCheckForUpdates
 
         installObservers(for: controller.updater)
+        checkForUpdatesOnLaunchIfAllowed()
     }
 
     private init(
@@ -58,6 +60,17 @@ final class AppUpdater: ObservableObject {
 
     func checkForUpdates() {
         updaterController?.checkForUpdates(nil)
+    }
+
+    func checkForUpdatesOnLaunchIfAllowed() {
+        guard didCheckForUpdatesOnLaunch == false,
+              let updater = updaterController?.updater,
+              updater.automaticallyChecksForUpdates else {
+            return
+        }
+
+        didCheckForUpdatesOnLaunch = true
+        updater.checkForUpdatesInBackground()
     }
 
     func setAutomaticallyChecksForUpdates(_ newValue: Bool) {

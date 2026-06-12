@@ -1306,7 +1306,7 @@ final class DownloadCenter {
             body = "\(item.displayName) is ready."
         case .failed:
             title = "Download Failed"
-            body = item.lastError ?? "\(item.displayName) couldn't be downloaded."
+            body = item.displayLastError ?? "\(item.displayName) couldn't be downloaded."
         case .cancelled:
             title = "Download Cancelled"
             body = "\(item.displayName) was cancelled."
@@ -1349,7 +1349,7 @@ final class DownloadCenter {
 
         activeAlert = UserAlert(
             title: torrentErrorTitle(for: error),
-            message: error.localizedDescription
+            message: DownloadItem.displayErrorMessage(from: error.localizedDescription)
         )
     }
 

@@ -46,7 +46,7 @@ private struct DownloadInspectorContent: View {
                     )
                 }
 
-                if let message = item.lastError, item.status == .failed {
+                if let message = item.displayLastError, item.status == .failed {
                     DownloadCallout(
                         title: "Last Error",
                         message: message,
