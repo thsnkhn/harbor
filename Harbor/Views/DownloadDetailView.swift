@@ -40,7 +40,11 @@ private struct DownloadInspectorContent: View {
                 if item.status == .browserSessionRequired {
                     DownloadCallout(
                         title: "Browser Session Required",
-                        message: item.lastError ?? "This site requires a browser session before Harbor can download the file.",
+                        message: item.lastError ?? String(
+                            localized: "error.direct.browserSessionRequired",
+                            defaultValue: "This site requires a browser session before Harbor can download the file.",
+                            comment: "Download validation error shown when a site requires browser authentication before downloading."
+                        ),
                         systemImage: "globe",
                         tint: .mint
                     )
@@ -218,7 +222,11 @@ private struct DownloadHeader: View {
         case .directURL:
             item.sourceURL.host
         case .magnetLink:
-            "BitTorrent"
+            String(
+                localized: "source.summary.bitTorrent",
+                defaultValue: "BitTorrent",
+                comment: "Short source summary for magnet and torrent downloads."
+            )
         case .torrentFile:
             nil
         }
@@ -461,7 +469,7 @@ private struct DownloadValueRow: View {
 }
 
 private struct DownloadCallout: View {
-    let title: String
+    let title: LocalizedStringResource
     let message: String
     let systemImage: String
     let tint: Color

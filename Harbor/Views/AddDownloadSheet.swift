@@ -183,7 +183,11 @@ struct AddDownloadSheet: View {
             guard let parsedURL = URL(string: trimmedURL),
                   let detectedKind = DownloadSourceKind.detect(from: parsedURL),
                   detectedKind == .directURL || detectedKind == .magnetLink else {
-                validationMessage = "Enter a valid HTTP/HTTPS URL or magnet link."
+                validationMessage = String(
+                    localized: "add.validation.linkOrMagnet",
+                    defaultValue: "Enter a valid HTTP/HTTPS URL or magnet link.",
+                    comment: "Validation message shown when the entered source is not an HTTP, HTTPS, or magnet URL."
+                )
                 focusedField = .sourceURL
                 return
             }
@@ -194,7 +198,11 @@ struct AddDownloadSheet: View {
         case .torrentFile:
             guard let torrentFileURL,
                   DownloadSourceKind.detect(from: torrentFileURL) == .torrentFile else {
-                validationMessage = "Choose a valid `.torrent` file."
+                validationMessage = String(
+                    localized: "add.validation.torrentFile",
+                    defaultValue: "Choose a valid `.torrent` file.",
+                    comment: "Validation message shown when the selected torrent file is missing or invalid."
+                )
                 return
             }
 

@@ -7,14 +7,14 @@ enum DownloadSourceKind: String, Codable, CaseIterable, Identifiable, Sendable {
 
     var id: String { rawValue }
 
-    var title: String {
+    var title: LocalizedStringResource {
         switch self {
         case .directURL:
-            "Direct Link"
+            LocalizedStringResource("source.kind.directURL", defaultValue: "Direct Link")
         case .magnetLink:
-            "Magnet Link"
+            LocalizedStringResource("source.kind.magnetLink", defaultValue: "Magnet Link")
         case .torrentFile:
-            "Torrent File"
+            LocalizedStringResource("source.kind.torrentFile", defaultValue: "Torrent File")
         }
     }
 

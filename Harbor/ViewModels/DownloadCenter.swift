@@ -84,7 +84,11 @@ final class DownloadCenter {
                     if record.status == .queued || record.status == .preparing || record.status == .downloading {
                         item.status = settings.startDownloadsAutomatically ? .queued : .paused
                         if settings.startDownloadsAutomatically == false {
-                            item.lastError = "Paused after relaunch."
+                            item.lastError = String(
+                                localized: "download.restore.pausedAfterRelaunch",
+                                defaultValue: "Paused after relaunch.",
+                                comment: "Status message shown when a download is restored as paused after app relaunch."
+                            )
                         }
                     }
 
@@ -99,7 +103,11 @@ final class DownloadCenter {
             }
         } catch {
             activeAlert = UserAlert(
-                title: "Couldn’t Restore Downloads",
+                title: String(
+                    localized: "alert.restoreDownloads.title",
+                    defaultValue: "Couldn’t Restore Downloads",
+                    comment: "Alert title shown when saved downloads cannot be restored."
+                ),
                 message: error.localizedDescription
             )
         }
@@ -544,8 +552,16 @@ final class DownloadCenter {
 
         if let activeBrowserSession, activeBrowserSession.downloadID != id {
             activeAlert = UserAlert(
-                title: "Browser Session Already Open",
-                message: "Finish the current browser-assisted download before starting another one."
+                title: String(
+                    localized: "alert.browserSessionAlreadyOpen.title",
+                    defaultValue: "Browser Session Already Open",
+                    comment: "Alert title shown when another browser-assisted download is already active."
+                ),
+                message: String(
+                    localized: "alert.browserSessionAlreadyOpen.message",
+                    defaultValue: "Finish the current browser-assisted download before starting another one.",
+                    comment: "Alert message shown when another browser-assisted download is already active."
+                )
             )
             return
         }
@@ -791,7 +807,11 @@ final class DownloadCenter {
                     item.speedBytesPerSecond = 0
                     item.uploadBytesPerSecond = 0
                     item.updatedAt = .now
-                    item.lastError = "Torrent engine restarted. Resume to continue."
+                    item.lastError = String(
+                        localized: "torrent.restart.resumeToContinue",
+                        defaultValue: "Torrent engine restarted. Resume to continue.",
+                        comment: "Status message shown after the torrent engine restarts and a transfer can be resumed."
+                    )
                     setStatus(for: item, to: .paused)
                     didMutate = true
                     continue
@@ -850,7 +870,11 @@ final class DownloadCenter {
             item.uploadBytesPerSecond = 0
 
         case "error":
-            item.lastError = snapshot.errorMessage ?? "Torrent engine reported an error."
+            item.lastError = snapshot.errorMessage ?? String(
+                localized: "torrent.error.generic",
+                defaultValue: "Torrent engine reported an error.",
+                comment: "Fallback error message shown when the torrent engine reports an error without details."
+            )
             item.speedBytesPerSecond = 0
             item.uploadBytesPerSecond = 0
             let gid = snapshot.gid
@@ -1122,8 +1146,14 @@ final class DownloadCenter {
         }
 
         if let statusCode, (200 ... 299).contains(statusCode) == false {
+            let template = String(
+                localized: "error.direct.httpStatus",
+                defaultValue: "The server returned HTTP %d instead of a downloadable file.",
+                comment: "Download validation error. Parameter is an HTTP status code."
+            )
+
             throw DirectDownloadValidationError.invalidResponse(
-                "The server returned HTTP \(statusCode) instead of a downloadable file."
+                String(format: template, statusCode)
             )
         }
 
@@ -1140,7 +1170,11 @@ final class DownloadCenter {
 
         if isHTMLMimeType || payloadLooksLikeHTML(at: temporaryURL) {
             throw DirectDownloadValidationError.browserSessionRequired(
-                "This site requires a browser session before Harbor can download the file."
+                String(
+                    localized: "error.direct.browserSessionRequired",
+                    defaultValue: "This site requires a browser session before Harbor can download the file.",
+                    comment: "Download validation error shown when a site requires browser authentication before downloading."
+                )
             )
         }
     }
@@ -1302,14 +1336,47 @@ final class DownloadCenter {
 
         switch status {
         case .completed:
-            title = "Download Finished"
-            body = "\(item.displayName) is ready."
+            title = String(
+                localized: "notification.downloadFinished.title",
+                defaultValue: "Download Finished",
+                comment: "Notification title for a completed download."
+            )
+            body = String(
+                format: String(
+                    localized: "notification.downloadFinished.body",
+                    defaultValue: "%@ is ready.",
+                    comment: "Notification body for a completed download. Parameter is the download name."
+                ),
+                item.displayName
+            )
         case .failed:
-            title = "Download Failed"
-            body = item.displayLastError ?? "\(item.displayName) couldn't be downloaded."
+            title = String(
+                localized: "notification.downloadFailed.title",
+                defaultValue: "Download Failed",
+                comment: "Notification title for a failed download."
+            )
+            body = item.displayLastError ?? String(
+                format: String(
+                    localized: "notification.downloadFailed.body",
+                    defaultValue: "%@ couldn’t be downloaded.",
+                    comment: "Notification body for a failed download. Parameter is the download name."
+                ),
+                item.displayName
+            )
         case .cancelled:
-            title = "Download Cancelled"
-            body = "\(item.displayName) was cancelled."
+            title = String(
+                localized: "notification.downloadCancelled.title",
+                defaultValue: "Download Cancelled",
+                comment: "Notification title for a cancelled download."
+            )
+            body = String(
+                format: String(
+                    localized: "notification.downloadCancelled.body",
+                    defaultValue: "%@ was cancelled.",
+                    comment: "Notification body for a cancelled download. Parameter is the download name."
+                ),
+                item.displayName
+            )
         case .queued, .preparing, .downloading, .browserSessionRequired, .paused:
             return nil
         }
@@ -1386,10 +1453,18 @@ final class DownloadCenter {
 
     private func torrentErrorTitle(for error: Error) -> String {
         if case TorrentEngineError.binaryNotFound = error {
-            return "Torrent Support Needs aria2"
+            return String(
+                localized: "alert.torrent.missingAria2.title",
+                defaultValue: "Torrent Support Needs aria2",
+                comment: "Alert title shown when the bundled aria2 torrent runtime cannot be found."
+            )
         }
 
-        return "Torrent Engine Error"
+        return String(
+            localized: "alert.torrent.engineError.title",
+            defaultValue: "Torrent Engine Error",
+            comment: "Alert title shown when the torrent backend reports an error."
+        )
     }
 
     private func schedulePersist() {

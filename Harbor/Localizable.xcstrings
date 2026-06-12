@@ -1555,6 +1555,465 @@
           }
         }
       }
+    },
+    "add.validation.linkOrMagnet" : {
+      "comment" : "Validation message shown when the entered source is not an HTTP, HTTPS, or magnet URL.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Enter a valid HTTP/HTTPS URL or magnet link."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Inserisci un URL HTTP/HTTPS valido o un link magnet."
+          }
+        }
+      }
+    },
+    "add.validation.torrentFile" : {
+      "comment" : "Validation message shown when the selected torrent file is missing or invalid.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Choose a valid `.torrent` file."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scegli un file `.torrent` valido."
+          }
+        }
+      }
+    },
+    "alert.browserSessionAlreadyOpen.message" : {
+      "comment" : "Alert message shown when another browser-assisted download is already active.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Finish the current browser-assisted download before starting another one."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Completa il download assistito dal browser corrente prima di avviarne un altro."
+          }
+        }
+      }
+    },
+    "alert.browserSessionAlreadyOpen.title" : {
+      "comment" : "Alert title shown when another browser-assisted download is already active.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Browser Session Already Open"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sessione browser già aperta"
+          }
+        }
+      }
+    },
+    "alert.restoreDownloads.title" : {
+      "comment" : "Alert title shown when saved downloads cannot be restored.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Couldn’t Restore Downloads"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossibile ripristinare i download"
+          }
+        }
+      }
+    },
+    "alert.torrent.engineError.title" : {
+      "comment" : "Alert title shown when the torrent backend reports an error.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Torrent Engine Error"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Errore del motore torrent"
+          }
+        }
+      }
+    },
+    "alert.torrent.missingAria2.title" : {
+      "comment" : "Alert title shown when the bundled aria2 torrent runtime cannot be found.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Torrent Support Needs aria2"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Il supporto torrent richiede aria2"
+          }
+        }
+      }
+    },
+    "download.displayName.generic" : {
+      "comment" : "Generic fallback display name for a download.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Download"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Download"
+          }
+        }
+      }
+    },
+    "download.displayName.magnet" : {
+      "comment" : "Fallback display name for a magnet download before metadata is available.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Magnet Download"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Download magnet"
+          }
+        }
+      }
+    },
+    "download.restore.pausedAfterRelaunch" : {
+      "comment" : "Status message shown when a download is restored as paused after app relaunch.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Paused after relaunch."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In pausa dopo il riavvio."
+          }
+        }
+      }
+    },
+    "error.direct.browserSessionRequired" : {
+      "comment" : "Download validation error shown when a site requires browser authentication before downloading.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "This site requires a browser session before Harbor can download the file."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Questo sito richiede una sessione browser prima che Harbor possa scaricare il file."
+          }
+        }
+      }
+    },
+    "error.direct.httpStatus" : {
+      "comment" : "Download validation error. Parameter is an HTTP status code.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "The server returned HTTP %1$d instead of a downloadable file."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Il server ha restituito HTTP %1$d invece di un file scaricabile."
+          }
+        }
+      }
+    },
+    "error.torrent.duplicateDestination" : {
+      "comment" : "Friendly torrent error shown when the target file already exists. Parameter is the existing file path.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "An item with this name already exists in the destination. Harbor stopped the torrent to avoid overwriting or truncating it.\n\nExisting item:\n%1$@\n\nMove, rename, or delete the existing item, then retry the download."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un elemento con questo nome esiste già nella destinazione. Harbor ha interrotto il torrent per evitare di sovrascriverlo o troncarlo.\n\nElemento esistente:\n%1$@\n\nSposta, rinomina o elimina l'elemento esistente, quindi riprova il download."
+          }
+        }
+      }
+    },
+    "notification.downloadCancelled.body" : {
+      "comment" : "Notification body for a cancelled download. Parameter is the download name.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ was cancelled."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ è stato annullato."
+          }
+        }
+      }
+    },
+    "notification.downloadCancelled.title" : {
+      "comment" : "Notification title for a cancelled download.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Download Cancelled"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Download annullato"
+          }
+        }
+      }
+    },
+    "notification.downloadFailed.body" : {
+      "comment" : "Notification body for a failed download. Parameter is the download name.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ couldn’t be downloaded."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossibile scaricare %1$@."
+          }
+        }
+      }
+    },
+    "notification.downloadFailed.title" : {
+      "comment" : "Notification title for a failed download.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Download Failed"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Download non riuscito"
+          }
+        }
+      }
+    },
+    "notification.downloadFinished.body" : {
+      "comment" : "Notification body for a completed download. Parameter is the download name.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ is ready."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ è pronto."
+          }
+        }
+      }
+    },
+    "notification.downloadFinished.title" : {
+      "comment" : "Notification title for a completed download.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Download Finished"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Download completato"
+          }
+        }
+      }
+    },
+    "source.host.magnetLink" : {
+      "comment" : "Source host fallback for magnet link downloads.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Magnet Link"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Link magnet"
+          }
+        }
+      }
+    },
+    "source.host.torrentFile" : {
+      "comment" : "Source host fallback for local torrent file downloads.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Torrent File"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "File torrent"
+          }
+        }
+      }
+    },
+    "source.kind.directURL" : {
+      "comment" : "Download source type for direct HTTP or HTTPS links.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Direct Link"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Link diretto"
+          }
+        }
+      }
+    },
+    "source.kind.magnetLink" : {
+      "comment" : "Download source type for magnet links.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Magnet Link"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Link magnet"
+          }
+        }
+      }
+    },
+    "source.kind.torrentFile" : {
+      "comment" : "Download source type for local torrent files.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Torrent File"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "File torrent"
+          }
+        }
+      }
+    },
+    "source.summary.bitTorrent" : {
+      "comment" : "Short source summary for magnet and torrent downloads.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "BitTorrent"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "BitTorrent"
+          }
+        }
+      }
+    },
+    "torrent.error.generic" : {
+      "comment" : "Fallback error message shown when the torrent engine reports an error without details.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Torrent engine reported an error."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Il motore torrent ha segnalato un errore."
+          }
+        }
+      }
+    },
+    "torrent.restart.resumeToContinue" : {
+      "comment" : "Status message shown after the torrent engine restarts and a transfer can be resumed.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Torrent engine restarted. Resume to continue."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Il motore torrent si è riavviato. Riprendi per continuare."
+          }
+        }
+      }
     }
   },
   "version" : "1.2"
