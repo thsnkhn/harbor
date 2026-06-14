@@ -5,6 +5,7 @@ struct AddDownloadSheet: View {
     private enum Field: Hashable {
         case sourceURL
         case filename
+        case tags
     }
 
     let settings: AppSettingsStore
@@ -16,6 +17,7 @@ struct AddDownloadSheet: View {
     @State private var entryMode: AddDownloadEntryMode
     @State private var sourceURLText: String
     @State private var customFilename: String
+    @State private var tagsText: String
     @State private var torrentFileURL: URL?
     @State private var destinationPath: String
     @State private var shouldStartImmediately: Bool
@@ -31,6 +33,7 @@ struct AddDownloadSheet: View {
         _entryMode = State(initialValue: draft.entryMode)
         _sourceURLText = State(initialValue: draft.sourceURLText)
         _customFilename = State(initialValue: draft.customFilename)
+        _tagsText = State(initialValue: DownloadTags.text(from: draft.tags))
         _torrentFileURL = State(initialValue: draft.torrentFileURL)
         _destinationPath = State(initialValue: draft.destinationFolderURL.path)
         _shouldStartImmediately = State(initialValue: draft.shouldStartImmediately)
@@ -75,6 +78,9 @@ struct AddDownloadSheet: View {
                         }
                     }
                 }
+
+                TextField("Tags, separated by commas", text: $tagsText)
+                    .focused($focusedField, equals: Field.tags)
 
                 destinationPicker
 
@@ -218,6 +224,7 @@ struct AddDownloadSheet: View {
                 sourceKind: sourceKind,
                 sourceURL: sourceURL,
                 customFilename: sourceKind.supportsCustomFilename && trimmedFilename.isEmpty == false ? trimmedFilename : nil,
+                tags: DownloadTags.parsed(from: tagsText),
                 destinationFolder: folderURL,
                 shouldStartImmediately: shouldStartImmediately
             )

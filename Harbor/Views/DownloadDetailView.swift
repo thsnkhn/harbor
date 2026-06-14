@@ -35,6 +35,7 @@ private struct DownloadInspectorContent: View {
 
                 DownloadTransferSection(item: item)
                 DownloadStorageSection(item: item)
+                DownloadTagsSection(item: item, center: center)
                 DownloadActivitySection(item: item)
 
                 if item.status == .browserSessionRequired {
@@ -444,6 +445,76 @@ private struct DownloadStorageSection: View {
                 }
             }
         }
+    }
+}
+
+private struct DownloadTagsSection: View {
+    let item: DownloadItem
+    let center: DownloadCenter
+
+    @State private var newTagText = ""
+
+    var body: some View {
+        DownloadDetailSection(title: "Tags") {
+            VStack(alignment: .leading, spacing: 10) {
+                if item.tags.isEmpty {
+                    Text("No tags")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .padding(.vertical, 4)
+                } else {
+                    VStack(spacing: 0) {
+                        ForEach(Array(item.tags.enumerated()), id: \.element) { index, tag in
+                            HStack(spacing: 8) {
+                                Label(tag, systemImage: "tag")
+                                    .lineLimit(1)
+
+                                Spacer()
+
+                                Button {
+                                    removeTag(tag)
+                                } label: {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .foregroundStyle(.secondary)
+                                }
+                                .buttonStyle(.plain)
+                                .help("Remove tag")
+                            }
+                            .padding(.vertical, 6)
+
+                            if index < item.tags.count - 1 {
+                                Divider()
+                            }
+                        }
+                    }
+                }
+
+                HStack(spacing: 8) {
+                    TextField("Add tag", text: $newTagText)
+                        .onSubmit(addTags)
+
+                    Button("Add", systemImage: "plus", action: addTags)
+                        .disabled(DownloadTags.parsed(from: newTagText).isEmpty)
+                }
+            }
+        }
+    }
+
+    private func addTags() {
+        let tags = DownloadTags.parsed(from: newTagText)
+        guard tags.isEmpty == false else {
+            return
+        }
+
+        center.setTags(for: item.id, tags: item.tags + tags)
+        newTagText = ""
+    }
+
+    private func removeTag(_ tag: String) {
+        center.setTags(
+            for: item.id,
+            tags: item.tags.filter { $0.caseInsensitiveCompare(tag) != .orderedSame }
+        )
     }
 }
 

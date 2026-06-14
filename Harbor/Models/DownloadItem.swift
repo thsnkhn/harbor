@@ -115,6 +115,7 @@ struct DownloadRecord: Codable, Sendable {
     let resumeData: Data?
     let backendIdentifier: String?
     let metadataName: String?
+    let tags: [String]
     let activityEvents: [DownloadActivityEvent]
 
     private enum CodingKeys: String, CodingKey {
@@ -137,6 +138,7 @@ struct DownloadRecord: Codable, Sendable {
         case resumeData
         case backendIdentifier
         case metadataName
+        case tags
         case activityEvents
     }
 
@@ -160,6 +162,7 @@ struct DownloadRecord: Codable, Sendable {
         resumeData: Data?,
         backendIdentifier: String?,
         metadataName: String?,
+        tags: [String] = [],
         activityEvents: [DownloadActivityEvent] = []
     ) {
         self.id = id
@@ -181,6 +184,7 @@ struct DownloadRecord: Codable, Sendable {
         self.resumeData = resumeData
         self.backendIdentifier = backendIdentifier
         self.metadataName = metadataName
+        self.tags = DownloadTags.normalized(tags)
         self.activityEvents = activityEvents
     }
 
@@ -205,6 +209,7 @@ struct DownloadRecord: Codable, Sendable {
         self.resumeData = try container.decodeIfPresent(Data.self, forKey: .resumeData)
         self.backendIdentifier = try container.decodeIfPresent(String.self, forKey: .backendIdentifier)
         self.metadataName = try container.decodeIfPresent(String.self, forKey: .metadataName)
+        self.tags = DownloadTags.normalized(try container.decodeIfPresent([String].self, forKey: .tags) ?? [])
         self.activityEvents = try container.decodeIfPresent([DownloadActivityEvent].self, forKey: .activityEvents) ?? []
     }
 
@@ -229,6 +234,7 @@ struct DownloadRecord: Codable, Sendable {
         try container.encode(resumeData, forKey: .resumeData)
         try container.encode(backendIdentifier, forKey: .backendIdentifier)
         try container.encode(metadataName, forKey: .metadataName)
+        try container.encode(tags, forKey: .tags)
         try container.encode(activityEvents, forKey: .activityEvents)
     }
 }
@@ -258,6 +264,7 @@ final class DownloadItem: Identifiable {
     var taskIdentifier: Int?
     var backendIdentifier: String?
     var metadataName: String?
+    var tags: [String]
     var activityEvents: [DownloadActivityEvent]
 
     init(
@@ -283,6 +290,7 @@ final class DownloadItem: Identifiable {
         taskIdentifier: Int? = nil,
         backendIdentifier: String? = nil,
         metadataName: String? = nil,
+        tags: [String] = [],
         activityEvents: [DownloadActivityEvent] = []
     ) {
         self.id = id
@@ -307,6 +315,7 @@ final class DownloadItem: Identifiable {
         self.taskIdentifier = taskIdentifier
         self.backendIdentifier = backendIdentifier
         self.metadataName = metadataName
+        self.tags = DownloadTags.normalized(tags)
         self.activityEvents = activityEvents
 
         if self.activityEvents.contains(where: { $0.kind == .added }) == false {
@@ -341,6 +350,7 @@ final class DownloadItem: Identifiable {
             taskIdentifier: nil,
             backendIdentifier: record.backendIdentifier,
             metadataName: record.metadataName,
+            tags: record.tags,
             activityEvents: record.activityEvents
         )
     }
@@ -498,6 +508,7 @@ final class DownloadItem: Identifiable {
             resumeData: resumeData,
             backendIdentifier: backendIdentifier,
             metadataName: metadataName,
+            tags: tags,
             activityEvents: activityEvents
         )
     }
@@ -565,5 +576,38 @@ final class DownloadItem: Identifiable {
             .trimmingCharacters(in: .whitespacesAndNewlines)
 
         return path.isEmpty ? nil : path
+    }
+}
+
+enum DownloadTags {
+    static func normalized(_ tags: [String]) -> [String] {
+        var seen = Set<String>()
+
+        // TODO: ponytail: keep tags manual; add automatic rules only when users need them.
+        return tags.compactMap { tag in
+            let trimmed = tag.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard trimmed.isEmpty == false else {
+                return nil
+            }
+
+            let key = trimmed.lowercased()
+            guard seen.insert(key).inserted else {
+                return nil
+            }
+
+            return trimmed
+        }
+    }
+
+    static func parsed(from text: String) -> [String] {
+        normalized(text.split(separator: ",", omittingEmptySubsequences: false).map(String.init))
+    }
+
+    static func text(from tags: [String]) -> String {
+        normalized(tags).joined(separator: ", ")
+    }
+
+    static func contains(_ tags: [String], tag: String) -> Bool {
+        tags.contains { $0.caseInsensitiveCompare(tag) == .orderedSame }
     }
 }

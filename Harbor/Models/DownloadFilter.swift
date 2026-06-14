@@ -80,6 +80,48 @@ enum DownloadFilter: String, CaseIterable, Identifiable, Hashable {
     }
 }
 
+enum DownloadSidebarSelection: Hashable, Identifiable {
+    case filter(DownloadFilter)
+    case tag(String)
+
+    var id: String {
+        switch self {
+        case .filter(let filter):
+            "filter-\(filter.rawValue)"
+        case .tag(let tag):
+            "tag-\(tag.lowercased())"
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .filter(let filter):
+            String(localized: filter.title)
+        case .tag(let tag):
+            tag
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .filter(let filter):
+            filter.systemImage
+        case .tag:
+            "tag"
+        }
+    }
+
+    @MainActor
+    func includes(_ item: DownloadItem) -> Bool {
+        switch self {
+        case .filter(let filter):
+            filter.includes(item)
+        case .tag(let tag):
+            DownloadTags.contains(item.tags, tag: tag)
+        }
+    }
+}
+
 enum DownloadSortMode: String, CaseIterable, Identifiable {
     case newest
     case oldest
