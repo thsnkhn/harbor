@@ -64,7 +64,9 @@ enum HarborPreviewFixtures {
             speedBytesPerSecond: 0,
             startedAt: now.addingTimeInterval(-7_100),
             finishedAt: now.addingTimeInterval(-6_900),
-            updatedAt: now.addingTimeInterval(-6_900)
+            updatedAt: now.addingTimeInterval(-6_900),
+            expectedSHA256: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            computedSHA256: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
         )
 
         let magnet = DownloadItem(

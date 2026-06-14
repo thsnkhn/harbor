@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import Observation
 
@@ -67,6 +68,11 @@ enum DownloadStatus: String, Codable, CaseIterable, Sendable {
     }
 }
 
+enum DownloadChecksumVerificationState: Sendable {
+    case verified
+    case failed
+}
+
 enum DownloadActivityKind: String, Codable, Sendable {
     case added
     case queued
@@ -115,6 +121,8 @@ struct DownloadRecord: Codable, Sendable {
     let resumeData: Data?
     let backendIdentifier: String?
     let metadataName: String?
+    let expectedSHA256: String?
+    let computedSHA256: String?
     let activityEvents: [DownloadActivityEvent]
 
     private enum CodingKeys: String, CodingKey {
@@ -137,6 +145,8 @@ struct DownloadRecord: Codable, Sendable {
         case resumeData
         case backendIdentifier
         case metadataName
+        case expectedSHA256
+        case computedSHA256
         case activityEvents
     }
 
@@ -160,6 +170,8 @@ struct DownloadRecord: Codable, Sendable {
         resumeData: Data?,
         backendIdentifier: String?,
         metadataName: String?,
+        expectedSHA256: String? = nil,
+        computedSHA256: String? = nil,
         activityEvents: [DownloadActivityEvent] = []
     ) {
         self.id = id
@@ -181,6 +193,8 @@ struct DownloadRecord: Codable, Sendable {
         self.resumeData = resumeData
         self.backendIdentifier = backendIdentifier
         self.metadataName = metadataName
+        self.expectedSHA256 = expectedSHA256
+        self.computedSHA256 = computedSHA256
         self.activityEvents = activityEvents
     }
 
@@ -205,6 +219,8 @@ struct DownloadRecord: Codable, Sendable {
         self.resumeData = try container.decodeIfPresent(Data.self, forKey: .resumeData)
         self.backendIdentifier = try container.decodeIfPresent(String.self, forKey: .backendIdentifier)
         self.metadataName = try container.decodeIfPresent(String.self, forKey: .metadataName)
+        self.expectedSHA256 = try container.decodeIfPresent(String.self, forKey: .expectedSHA256)
+        self.computedSHA256 = try container.decodeIfPresent(String.self, forKey: .computedSHA256)
         self.activityEvents = try container.decodeIfPresent([DownloadActivityEvent].self, forKey: .activityEvents) ?? []
     }
 
@@ -229,6 +245,8 @@ struct DownloadRecord: Codable, Sendable {
         try container.encode(resumeData, forKey: .resumeData)
         try container.encode(backendIdentifier, forKey: .backendIdentifier)
         try container.encode(metadataName, forKey: .metadataName)
+        try container.encode(expectedSHA256, forKey: .expectedSHA256)
+        try container.encode(computedSHA256, forKey: .computedSHA256)
         try container.encode(activityEvents, forKey: .activityEvents)
     }
 }
@@ -258,6 +276,8 @@ final class DownloadItem: Identifiable {
     var taskIdentifier: Int?
     var backendIdentifier: String?
     var metadataName: String?
+    var expectedSHA256: String?
+    var computedSHA256: String?
     var activityEvents: [DownloadActivityEvent]
 
     init(
@@ -283,6 +303,8 @@ final class DownloadItem: Identifiable {
         taskIdentifier: Int? = nil,
         backendIdentifier: String? = nil,
         metadataName: String? = nil,
+        expectedSHA256: String? = nil,
+        computedSHA256: String? = nil,
         activityEvents: [DownloadActivityEvent] = []
     ) {
         self.id = id
@@ -307,6 +329,8 @@ final class DownloadItem: Identifiable {
         self.taskIdentifier = taskIdentifier
         self.backendIdentifier = backendIdentifier
         self.metadataName = metadataName
+        self.expectedSHA256 = expectedSHA256
+        self.computedSHA256 = computedSHA256
         self.activityEvents = activityEvents
 
         if self.activityEvents.contains(where: { $0.kind == .added }) == false {
@@ -341,6 +365,8 @@ final class DownloadItem: Identifiable {
             taskIdentifier: nil,
             backendIdentifier: record.backendIdentifier,
             metadataName: record.metadataName,
+            expectedSHA256: record.expectedSHA256,
+            computedSHA256: record.computedSHA256,
             activityEvents: record.activityEvents
         )
     }
@@ -465,6 +491,16 @@ final class DownloadItem: Identifiable {
         lastError.map { Self.displayErrorMessage(from: $0) }
     }
 
+    var checksumVerificationState: DownloadChecksumVerificationState? {
+        guard status == .completed,
+              let expectedSHA256,
+              let computedSHA256 else {
+            return nil
+        }
+
+        return expectedSHA256 == computedSHA256 ? .verified : .failed
+    }
+
     var isRunning: Bool {
         status.isRunning
     }
@@ -498,6 +534,8 @@ final class DownloadItem: Identifiable {
             resumeData: resumeData,
             backendIdentifier: backendIdentifier,
             metadataName: metadataName,
+            expectedSHA256: expectedSHA256,
+            computedSHA256: computedSHA256,
             activityEvents: activityEvents
         )
     }
@@ -565,5 +603,43 @@ final class DownloadItem: Identifiable {
             .trimmingCharacters(in: .whitespacesAndNewlines)
 
         return path.isEmpty ? nil : path
+    }
+}
+
+enum SHA256Checksum {
+    static func normalized(_ value: String) -> String? {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.count == 64 else {
+            return nil
+        }
+
+        let hexCharacters = CharacterSet(charactersIn: "0123456789abcdefABCDEF")
+        guard trimmed.unicodeScalars.allSatisfy({ hexCharacters.contains($0) }) else {
+            return nil
+        }
+
+        return trimmed.lowercased()
+    }
+
+    static func hashFile(at url: URL) throws -> String {
+        let handle = try FileHandle(forReadingFrom: url)
+        defer {
+            try? handle.close()
+        }
+
+        // TODO: Add more checksum algorithms only when SHA-256 is not enough for real downloads.
+        var hasher = SHA256()
+        while true {
+            let data = try handle.read(upToCount: 1024 * 1024) ?? Data()
+            guard data.isEmpty == false else {
+                break
+            }
+
+            hasher.update(data: data)
+        }
+
+        return hasher.finalize()
+            .map { String(format: "%02x", $0) }
+            .joined()
     }
 }

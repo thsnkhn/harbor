@@ -299,7 +299,8 @@ final class DownloadCenter {
             backend: backend,
             preferredFilename: preferredFilename,
             destinationFolderPath: request.destinationFolder.path,
-            status: request.shouldStartImmediately ? .queued : .paused
+            status: request.shouldStartImmediately ? .queued : .paused,
+            expectedSHA256: request.sourceKind == .directURL ? request.expectedSHA256 : nil
         )
 
         if request.sourceKind == .magnetLink {
@@ -356,6 +357,7 @@ final class DownloadCenter {
 
         item.lastError = nil
         item.finishedAt = nil
+        item.computedSHA256 = nil
         item.speedBytesPerSecond = 0
         item.uploadBytesPerSecond = 0
         item.updatedAt = .now
@@ -600,6 +602,7 @@ final class DownloadCenter {
 
         item.lastError = nil
         item.finishedAt = nil
+        item.computedSHA256 = nil
         item.speedBytesPerSecond = 0
         item.updatedAt = .now
 
@@ -1112,6 +1115,7 @@ final class DownloadCenter {
 
         item.fileLocationPath = destinationURL.path
         item.preferredFilename = destinationURL.lastPathComponent
+        item.computedSHA256 = item.expectedSHA256 == nil ? nil : try SHA256Checksum.hashFile(at: destinationURL)
         item.progress = 1
         item.expectedBytes = max(expectedBytes, item.bytesWritten)
         item.bytesWritten = max(item.bytesWritten, item.expectedBytes)
@@ -1336,19 +1340,35 @@ final class DownloadCenter {
 
         switch status {
         case .completed:
-            title = String(
-                localized: "notification.downloadFinished.title",
-                defaultValue: "Download Finished",
-                comment: "Notification title for a completed download."
-            )
-            body = String(
-                format: String(
-                    localized: "notification.downloadFinished.body",
-                    defaultValue: "%@ is ready.",
-                    comment: "Notification body for a completed download. Parameter is the download name."
-                ),
-                item.displayName
-            )
+            if item.checksumVerificationState == .failed {
+                title = String(
+                    localized: "notification.checksumFailed.title",
+                    defaultValue: "Checksum Failed",
+                    comment: "Notification title for a completed download whose checksum did not match."
+                )
+                body = String(
+                    format: String(
+                        localized: "notification.checksumFailed.body",
+                        defaultValue: "%@ finished but did not match its SHA-256 checksum.",
+                        comment: "Notification body for a completed download whose checksum did not match. Parameter is the download name."
+                    ),
+                    item.displayName
+                )
+            } else {
+                title = String(
+                    localized: "notification.downloadFinished.title",
+                    defaultValue: "Download Finished",
+                    comment: "Notification title for a completed download."
+                )
+                body = String(
+                    format: String(
+                        localized: "notification.downloadFinished.body",
+                        defaultValue: "%@ is ready.",
+                        comment: "Notification body for a completed download. Parameter is the download name."
+                    ),
+                    item.displayName
+                )
+            }
         case .failed:
             title = String(
                 localized: "notification.downloadFailed.title",
