@@ -35,6 +35,7 @@ struct TorrentStatusSnapshot: Sendable {
     let errorMessage: String?
     let metadataName: String?
     let primaryPath: String?
+    let trackers: [TorrentTracker]
 }
 
 actor Aria2TorrentService {
@@ -70,6 +71,7 @@ actor Aria2TorrentService {
     }
 
     private struct BittorrentPayload: Decodable {
+        let announceList: [[String]]?
         let info: InfoPayload?
     }
 
@@ -141,12 +143,16 @@ actor Aria2TorrentService {
     func addDownload(
         sourceKind: DownloadSourceKind,
         sourceURL: URL,
-        destinationFolderPath: String
+        destinationFolderPath: String,
+        manualTrackerURLs: [String] = []
     ) async throws -> String {
         logger.info("Starting torrent add request for source kind \(String(describing: sourceKind), privacy: .public)")
         try await ensureDaemonRunning()
 
-        let options = downloadOptions(destinationFolderPath: destinationFolderPath)
+        let options = downloadOptions(
+            destinationFolderPath: destinationFolderPath,
+            manualTrackerURLs: manualTrackerURLs
+        )
 
         switch sourceKind {
         case .magnetLink:
@@ -210,6 +216,22 @@ actor Aria2TorrentService {
         )
     }
 
+    func updateManualTrackers(gid: String, trackerURLs: [String]) async throws {
+        _ = try await rpcCallWithDaemonRestart(
+            method: "aria2.changeOption",
+            params: {
+                [
+                    try authorizedToken(),
+                    gid,
+                    [
+                        "bt-tracker": trackerURLs.joined(separator: ",")
+                    ]
+                ]
+            },
+            as: String.self
+        )
+    }
+
     func remove(gid: String) async {
         guard process?.isRunning == true,
               rpcPort != nil,
@@ -264,7 +286,8 @@ actor Aria2TorrentService {
             uploadSpeed: Double(payload.uploadSpeed ?? "") ?? 0,
             errorMessage: payload.errorMessage,
             metadataName: payload.bittorrent?.info?.name,
-            primaryPath: preferredPath(from: filePaths)
+            primaryPath: preferredPath(from: filePaths),
+            trackers: trackers(from: payload.bittorrent?.announceList)
         )
     }
 
@@ -367,12 +390,19 @@ actor Aria2TorrentService {
         return "token:\(rpcSecret)"
     }
 
-    private func downloadOptions(destinationFolderPath: String) -> [String: String] {
+    private func downloadOptions(
+        destinationFolderPath: String,
+        manualTrackerURLs: [String]
+    ) -> [String: String] {
         var options = [
             "dir": destinationFolderPath,
             "continue": "true",
             "pause": "false"
         ]
+
+        if manualTrackerURLs.isEmpty == false {
+            options["bt-tracker"] = manualTrackerURLs.joined(separator: ",")
+        }
 
         perDownloadOptions(transferSettings).forEach { key, value in
             options[key] = value
@@ -632,5 +662,22 @@ actor Aria2TorrentService {
 
         let commonPath = NSString.path(withComponents: sharedComponents)
         return commonPath.isEmpty ? filePaths[0] : commonPath
+    }
+
+    private func trackers(from announceList: [[String]]?) -> [TorrentTracker] {
+        var seenURLs = Set<String>()
+        var trackers: [TorrentTracker] = []
+
+        for trackerURL in announceList?.flatMap({ $0 }) ?? [] {
+            guard trackerURL.isEmpty == false,
+                  seenURLs.insert(trackerURL).inserted else {
+                continue
+            }
+
+            // TODO: Add per-tracker status/error here if aria2 exposes it through JSON-RPC.
+            trackers.append(TorrentTracker(url: trackerURL))
+        }
+
+        return trackers
     }
 }

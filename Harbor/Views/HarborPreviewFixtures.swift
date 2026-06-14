@@ -46,7 +46,13 @@ enum HarborPreviewFixtures {
             startedAt: now.addingTimeInterval(-3_420),
             updatedAt: now.addingTimeInterval(-120),
             backendIdentifier: "preview-torrent",
-            metadataName: "Cold Storage (2026) [1080p] [WEBRip] [x265]"
+            metadataName: "Cold Storage (2026) [1080p] [WEBRip] [x265]",
+            torrentTrackers: [
+                TorrentTracker(url: "udp://tracker.opentrackr.org:1337/announce")
+            ],
+            manualTrackerURLs: [
+                "https://tracker.example.com/announce"
+            ]
         )
 
         let direct = DownloadItem(
@@ -83,7 +89,14 @@ enum HarborPreviewFixtures {
             startedAt: now.addingTimeInterval(-840),
             updatedAt: now.addingTimeInterval(-8),
             backendIdentifier: "preview-magnet",
-            metadataName: "Ubuntu ISO"
+            metadataName: "Ubuntu ISO",
+            torrentTrackers: [
+                TorrentTracker(url: "udp://tracker.openbittorrent.com:6969/announce"),
+                TorrentTracker(url: "https://tracker.example.org/announce")
+            ],
+            manualTrackerURLs: [
+                "https://tracker.example.org/announce"
+            ]
         )
 
         let failed = DownloadItem(
