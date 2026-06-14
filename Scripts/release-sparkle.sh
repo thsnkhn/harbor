@@ -27,6 +27,7 @@ DOWNLOAD_URL_PREFIX="${DOWNLOAD_URL_PREFIX:-https://tahseen-kakar.github.io/harb
 RELEASE_NOTES_URL_PREFIX="${RELEASE_NOTES_URL_PREFIX:-$DOWNLOAD_URL_PREFIX}"
 PUBLIC_FEED_URL="${PUBLIC_FEED_URL:-https://tahseen-kakar.github.io/harbor/appcast.xml}"
 MAXIMUM_DELTAS="${MAXIMUM_DELTAS:-0}"
+RUN_RELEASE_SMOKE="${RUN_RELEASE_SMOKE:-YES}"
 
 usage() {
   echo "Usage: $0 [v<version>|<version>]" >&2
@@ -160,6 +161,11 @@ DMG_NAME="$PROJECT_NAME-$VERSION.dmg"
 DMG_PATH="$OUTPUT_DIR/$DMG_NAME"
 LATEST_DMG_NAME="$PROJECT_NAME.dmg"
 LATEST_DMG_PATH="$OUTPUT_DIR/$LATEST_DMG_NAME"
+
+if [ "$RUN_RELEASE_SMOKE" != "NO" ]; then
+  echo "Running release smoke test..."
+  sh "$PROJECT_DIR/Scripts/smoke-release.sh" "$APP_PATH"
+fi
 
 ensure_pages_worktree() {
   mkdir -p "$(dirname "$PAGES_WORKTREE")"

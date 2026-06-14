@@ -81,7 +81,8 @@ struct RootView: View {
         } message: {
             Text(center.activeAlert?.message ?? "")
         }
-        .toolbar(id: "downloads") {
+        // TODO: Revisit customizable toolbars after macOS 26 stops crashing while restoring toolbar items during file opens.
+        .toolbar {
             DownloadToolbarContent(center: center)
         }
         .onDrop(
@@ -131,17 +132,17 @@ private struct DownloadDropTargetOverlay: View {
     }
 }
 
-private struct DownloadToolbarContent: CustomizableToolbarContent {
+private struct DownloadToolbarContent: ToolbarContent {
     @Bindable var center: DownloadCenter
 
-    var body: some CustomizableToolbarContent {
-        ToolbarItem(id: "newDownload", placement: .primaryAction) {
+    var body: some ToolbarContent {
+        ToolbarItem(placement: .primaryAction) {
             Button("New Download", systemImage: "plus") {
                 center.presentAddSheet()
             }
         }
 
-        ToolbarItem(id: "pauseResumeAll", placement: .primaryAction) {
+        ToolbarItem(placement: .primaryAction) {
             Button(
                 center.hasActiveDownloads ? "Pause All" : "Resume All",
                 systemImage: center.hasActiveDownloads ? "pause.fill" : "play.fill"
@@ -159,14 +160,14 @@ private struct DownloadToolbarContent: CustomizableToolbarContent {
             )
         }
 
-        ToolbarItem(id: "revealSelected", placement: .primaryAction) {
+        ToolbarItem(placement: .primaryAction) {
             Button("Reveal", systemImage: "folder") {
                 center.revealSelectedInFinder()
             }
             .disabled(center.selectedDownload == nil)
         }
 
-        ToolbarItem(id: "sortDownloads", placement: .primaryAction) {
+        ToolbarItem(placement: .primaryAction) {
             Menu {
                 Picker("Sort", selection: $center.sortMode) {
                     ForEach(DownloadSortMode.allCases) { sortMode in
@@ -178,45 +179,6 @@ private struct DownloadToolbarContent: CustomizableToolbarContent {
             }
             .disabled(center.downloads.isEmpty)
         }
-
-        ToolbarItem(id: "addFromClipboard", placement: .primaryAction) {
-            Button("Add from Clipboard", systemImage: "doc.on.clipboard") {
-                center.addDownloadSourcesFromPasteboard()
-            }
-        }
-        .defaultCustomization(.hidden)
-
-        ToolbarItem(id: "retrySelected", placement: .primaryAction) {
-            Button("Retry", systemImage: "arrow.clockwise") {
-                center.retrySelectedDownload()
-            }
-            .disabled(center.canRetrySelectedDownload == false)
-        }
-        .defaultCustomization(.hidden)
-
-        ToolbarItem(id: "openDownloadedFile", placement: .primaryAction) {
-            Button("Open File", systemImage: "doc") {
-                center.openSelectedDownload()
-            }
-            .disabled(center.canOpenSelectedDownload == false)
-        }
-        .defaultCustomization(.hidden)
-
-        ToolbarItem(id: "clearCompleted", placement: .primaryAction) {
-            Button("Clear Completed", systemImage: "checkmark.circle") {
-                center.clearCompleted()
-            }
-            .disabled(center.hasCompletedDownloads == false)
-        }
-        .defaultCustomization(.hidden)
-
-        ToolbarItem(id: "clearFailed", placement: .primaryAction) {
-            Button("Clear Failed", systemImage: "exclamationmark.triangle") {
-                center.clearFailed()
-            }
-            .disabled(center.hasFailedDownloads == false)
-        }
-        .defaultCustomization(.hidden)
     }
 }
 
