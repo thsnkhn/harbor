@@ -3,6 +3,14 @@
     <channel>
         <title>Harbor</title>
         <item>
+            <title>1.2.9</title>
+            <pubDate>Sun, 14 Jun 2026 19:59:21 +0500</pubDate>
+            <sparkle:version>17</sparkle:version>
+            <sparkle:shortVersionString>1.2.9</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.6</sparkle:minimumSystemVersion>
+            <enclosure url="https://tahseen-kakar.github.io/harbor/updates/Harbor-1.2.9.dmg" length="9152902" type="application/octet-stream" sparkle:edSignature="SgmhXb/ZBAy693gdnvIeJEWD5h/bQFFLtqoUyx7ru0XeC1ECeLaqEgO3EtGpXyMoMJv5Zc2O/q/46X61pu33BA=="/>
+        </item>
+        <item>
             <title>1.2.8</title>
             <pubDate>Sun, 14 Jun 2026 19:05:22 +0500</pubDate>
             <sparkle:version>16</sparkle:version>
@@ -18,14 +26,6 @@
             <sparkle:minimumSystemVersion>15.6</sparkle:minimumSystemVersion>
             <sparkle:releaseNotesLink>https://tahseen-kakar.github.io/harbor/updates/Harbor-1.2.7.md</sparkle:releaseNotesLink>
             <enclosure url="https://tahseen-kakar.github.io/harbor/updates/Harbor-1.2.7.dmg" length="9152438" type="application/octet-stream" sparkle:edSignature="u88topaMASj3t9ojooKV7XEX7gKCUQDaY4JenhYPKWSoTlwFDPBjZKfa+GhxoSjo4wDjswLYCM6b2fWa5crUDg=="/>
-        </item>
-        <item>
-            <title>1.2.5</title>
-            <pubDate>Sat, 13 Jun 2026 01:20:31 +0500</pubDate>
-            <sparkle:version>14</sparkle:version>
-            <sparkle:shortVersionString>1.2.5</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>15.6</sparkle:minimumSystemVersion>
-            <enclosure url="https://tahseen-kakar.github.io/harbor/updates/Harbor-1.2.5.dmg" length="9129949" type="application/octet-stream" sparkle:edSignature="lXBblS0MJN23qtwxh5lCJivpOG+Fz8neRNq4GpTjhHkxtlbuQv8I2aPotM+c+/NK3VlI5yzINsF0+Y85rBgTCQ=="/>
         </item>
     </channel>
 </rss>
