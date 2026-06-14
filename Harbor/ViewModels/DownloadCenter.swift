@@ -16,6 +16,7 @@ final class DownloadCenter {
     @ObservationIgnored private var hasInstalledExternalOpenHandler = false
     @ObservationIgnored private var persistTask: Task<Void, Never>?
     @ObservationIgnored private var torrentRefreshTask: Task<Void, Never>?
+    @ObservationIgnored private var trackerSyncTasks: [UUID: Task<Void, Never>] = [:]
     @ObservationIgnored private var hasShownTorrentBinaryAlert = false
     @ObservationIgnored private var pendingExternalAddSheetDrafts: [AddDownloadSheetDraft] = []
 
@@ -58,6 +59,7 @@ final class DownloadCenter {
     deinit {
         persistTask?.cancel()
         torrentRefreshTask?.cancel()
+        trackerSyncTasks.values.forEach { $0.cancel() }
     }
 
     func initializeIfNeeded() async {
@@ -558,8 +560,7 @@ final class DownloadCenter {
             return false
         }
 
-        guard item.manualTrackerURLs.contains(trackerURL) == false,
-              item.torrentTrackers.contains(where: { $0.url == trackerURL }) == false else {
+        guard item.displayedTrackers.contains(where: { $0.url == trackerURL }) == false else {
             return false
         }
 
@@ -1519,32 +1520,54 @@ final class DownloadCenter {
     }
 
     private func syncManualTrackers(for item: DownloadItem) {
-        guard let backendIdentifier = item.backendIdentifier else {
+        let itemID = item.id
+        guard item.backendIdentifier != nil,
+              trackerSyncTasks[itemID] == nil else {
             return
         }
 
-        let itemID = item.id
-        let trackerURLs = item.manualTrackerURLs
-
-        Task { @MainActor [weak self] in
+        trackerSyncTasks[itemID] = Task { @MainActor [weak self] in
             guard let self else {
                 return
             }
 
-            do {
-                try await self.torrentService.updateManualTrackers(
-                    gid: backendIdentifier,
-                    trackerURLs: trackerURLs
-                )
-                await self.refreshTorrentDownload(id: itemID)
-            } catch {
+            defer {
+                self.trackerSyncTasks[itemID] = nil
+            }
+
+            while Task.isCancelled == false {
                 guard let item = self.item(for: itemID) else {
                     return
                 }
 
-                item.lastError = error.localizedDescription
-                item.updatedAt = .now
-                self.schedulePersist()
+                guard let backendIdentifier = item.backendIdentifier else {
+                    return
+                }
+
+                let trackerURLs = item.manualTrackerURLs
+
+                do {
+                    try await self.torrentService.updateManualTrackers(
+                        gid: backendIdentifier,
+                        trackerURLs: trackerURLs
+                    )
+                    await self.refreshTorrentDownload(id: itemID)
+                } catch {
+                    guard let item = self.item(for: itemID) else {
+                        return
+                    }
+
+                    item.lastError = error.localizedDescription
+                    item.updatedAt = .now
+                    self.schedulePersist()
+                    return
+                }
+
+                guard let latestItem = self.item(for: itemID),
+                      latestItem.backendIdentifier == backendIdentifier,
+                      latestItem.manualTrackerURLs != trackerURLs else {
+                    return
+                }
             }
         }
     }

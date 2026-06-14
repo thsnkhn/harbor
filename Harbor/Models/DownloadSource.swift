@@ -57,6 +57,7 @@ enum DownloadBackend: String, Codable, Sendable {
 struct MagnetLinkMetadata: Sendable {
     let displayName: String?
     let infoHash: String?
+    let trackerURLs: [String]
 
     init(url: URL) {
         let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
@@ -73,6 +74,12 @@ struct MagnetLinkMetadata: Sendable {
             .last
             .map(String.init)?
             .nilIfBlank
+
+        var seenTrackerURLs = Set<String>()
+        self.trackerURLs = queryItems
+            .filter { $0.name.lowercased() == "tr" }
+            .compactMap { $0.value?.nilIfBlank }
+            .filter { seenTrackerURLs.insert($0).inserted }
     }
 }
 

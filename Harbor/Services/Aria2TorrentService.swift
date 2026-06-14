@@ -103,6 +103,7 @@ actor Aria2TorrentService {
     private var rpcSecret: String?
     private var stderrPipe: Pipe?
     private var transferSettings: DownloadTransferSettings
+    private var manualTrackerURLsByGID: [String: [String]] = [:]
 
     init(transferSettings: DownloadTransferSettings = .default) {
         self.transferSettings = transferSettings
@@ -149,10 +150,7 @@ actor Aria2TorrentService {
         logger.info("Starting torrent add request for source kind \(String(describing: sourceKind), privacy: .public)")
         try await ensureDaemonRunning()
 
-        let options = downloadOptions(
-            destinationFolderPath: destinationFolderPath,
-            manualTrackerURLs: manualTrackerURLs
-        )
+        let options = downloadOptions(destinationFolderPath: destinationFolderPath)
 
         switch sourceKind {
         case .magnetLink:
@@ -168,6 +166,9 @@ actor Aria2TorrentService {
                 as: String.self
             )
             logger.info("aria2 accepted magnet download with gid \(gid, privacy: .public)")
+            if manualTrackerURLs.isEmpty == false {
+                try await updateManualTrackers(gid: gid, trackerURLs: manualTrackerURLs)
+            }
             return gid
         case .torrentFile:
             let torrentData = try Data(contentsOf: sourceURL)
@@ -184,6 +185,9 @@ actor Aria2TorrentService {
                 as: String.self
             )
             logger.info("aria2 accepted torrent file with gid \(gid, privacy: .public)")
+            if manualTrackerURLs.isEmpty == false {
+                try await updateManualTrackers(gid: gid, trackerURLs: manualTrackerURLs)
+            }
             return gid
         case .directURL:
             throw TorrentEngineError.invalidSource
@@ -217,6 +221,14 @@ actor Aria2TorrentService {
     }
 
     func updateManualTrackers(gid: String, trackerURLs: [String]) async throws {
+        let previousTrackerURLs = manualTrackerURLsByGID[gid] ?? []
+        let existingTrackerURLs = try await currentTrackerURLs(gid: gid)
+        let preservedTrackerURLs = existingTrackerURLs.filter { trackerURL in
+            previousTrackerURLs.contains(trackerURL) == false
+                && trackerURLs.contains(trackerURL) == false
+        }
+        let mergedTrackerURLs = uniqueTrackerURLs(preservedTrackerURLs + trackerURLs)
+
         _ = try await rpcCallWithDaemonRestart(
             method: "aria2.changeOption",
             params: {
@@ -224,12 +236,13 @@ actor Aria2TorrentService {
                     try authorizedToken(),
                     gid,
                     [
-                        "bt-tracker": trackerURLs.joined(separator: ",")
+                        "bt-tracker": mergedTrackerURLs.joined(separator: ",")
                     ]
                 ]
             },
             as: String.self
         )
+        manualTrackerURLsByGID[gid] = trackerURLs
     }
 
     func remove(gid: String) async {
@@ -248,6 +261,7 @@ actor Aria2TorrentService {
             token,
             gid
         ], as: String.self)
+        manualTrackerURLsByGID[gid] = nil
     }
 
     func status(for gid: String) async throws -> TorrentStatusSnapshot {
@@ -390,19 +404,12 @@ actor Aria2TorrentService {
         return "token:\(rpcSecret)"
     }
 
-    private func downloadOptions(
-        destinationFolderPath: String,
-        manualTrackerURLs: [String]
-    ) -> [String: String] {
+    private func downloadOptions(destinationFolderPath: String) -> [String: String] {
         var options = [
             "dir": destinationFolderPath,
             "continue": "true",
             "pause": "false"
         ]
-
-        if manualTrackerURLs.isEmpty == false {
-            options["bt-tracker"] = manualTrackerURLs.joined(separator: ",")
-        }
 
         perDownloadOptions(transferSettings).forEach { key, value in
             options[key] = value
@@ -444,12 +451,39 @@ actor Aria2TorrentService {
         ], as: String.self)
     }
 
+    private func currentTrackerURLs(gid: String) async throws -> [String] {
+        let options = try await rpcCallWithDaemonRestart(
+            method: "aria2.getOption",
+            params: {
+                [
+                    try authorizedToken(),
+                    gid
+                ]
+            },
+            as: [String: String].self
+        )
+
+        return trackerURLs(from: options["bt-tracker"])
+    }
+
     private func aria2LimitString(_ bytesPerSecond: Int64?) -> String {
         guard let bytesPerSecond else {
             return "0"
         }
 
         return "\(max(bytesPerSecond, 0))"
+    }
+
+    private func trackerURLs(from option: String?) -> [String] {
+        option?
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { $0.isEmpty == false } ?? []
+    }
+
+    private func uniqueTrackerURLs(_ trackerURLs: [String]) -> [String] {
+        var seenURLs = Set<String>()
+        return trackerURLs.filter { seenURLs.insert($0).inserted }
     }
 
     private func rpcCallWithDaemonRestart<Result: Decodable>(

@@ -511,6 +511,13 @@ final class DownloadItem: Identifiable {
             displayedTrackers.append(tracker)
         }
 
+        if sourceKind == .magnetLink {
+            for trackerURL in MagnetLinkMetadata(url: sourceURL).trackerURLs
+                where trackerURLs.insert(trackerURL).inserted {
+                displayedTrackers.append(TorrentTracker(url: trackerURL))
+            }
+        }
+
         for trackerURL in manualTrackerURLs where trackerURLs.insert(trackerURL).inserted {
             displayedTrackers.append(TorrentTracker(url: trackerURL))
         }
