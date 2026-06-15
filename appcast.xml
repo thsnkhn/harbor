@@ -3,6 +3,15 @@
     <channel>
         <title>Harbor</title>
         <item>
+            <title>1.2.10</title>
+            <pubDate>Mon, 15 Jun 2026 15:48:32 +0500</pubDate>
+            <sparkle:version>18</sparkle:version>
+            <sparkle:shortVersionString>1.2.10</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.6</sparkle:minimumSystemVersion>
+            <sparkle:releaseNotesLink>https://tahseen-kakar.github.io/harbor/updates/Harbor-1.2.10.md</sparkle:releaseNotesLink>
+            <enclosure url="https://tahseen-kakar.github.io/harbor/updates/Harbor-1.2.10.dmg" length="9152314" type="application/octet-stream" sparkle:edSignature="TOaHY7sXGSxMrVzOpBmsf5TyQLpLLsnhQBu/dr8lCaVNqCzuPCxZPbxvQ3/rQbEgZZYR26idJ5joVWMsIKWUDQ=="/>
+        </item>
+        <item>
             <title>1.2.7</title>
             <pubDate>Sat, 13 Jun 2026 02:08:15 +0500</pubDate>
             <sparkle:version>15</sparkle:version>
