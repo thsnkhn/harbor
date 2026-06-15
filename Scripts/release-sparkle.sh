@@ -5,15 +5,20 @@ set -eu
 # Usage:
 #   Scripts/release-sparkle.sh [v1.2.4|1.2.4]
 #
-# Release preflight:
-# 1. Export the notarized app bundle to build/export/Harbor.app.
-# 2. Run this script with the exported app's version, or omit the argument to use
-#    CFBundleShortVersionString from the exported app.
+# Defaults to archiving, Developer ID exporting, re-signing Sparkle's nested
+# helpers, notarizing, stapling, packaging, and publishing the Sparkle appcast.
+# Required by default: set RELEASE_NOTES or RELEASE_NOTES_FILE.
+# Required for smoke by default: quit Harbor and set HARBOR_SMOKE_CONFIRM_NO_RUNNING_HARBOR=YES.
+# Set PREPARE_RELEASE_APP=NO to publish an already prepared build/export/Harbor.app.
 
 PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 PROJECT_NAME="Harbor"
 GITHUB_REPO="${GITHUB_REPO:-tahseen-kakar/harbor}"
 TAG_REMOTE="${TAG_REMOTE:-origin}"
+PROJECT_FILE="${PROJECT_FILE:-$PROJECT_DIR/$PROJECT_NAME.xcodeproj}"
+SCHEME="${SCHEME:-$PROJECT_NAME}"
+CONFIGURATION="${CONFIGURATION:-Release}"
+ARCHIVE_PATH="${ARCHIVE_PATH:-$PROJECT_DIR/build/archive/$PROJECT_NAME.xcarchive}"
 EXPORT_DIR="$PROJECT_DIR/build/export"
 APP_PATH="$EXPORT_DIR/Harbor.app"
 OUTPUT_DIR="${OUTPUT_DIR:-$PROJECT_DIR/build/release}"
@@ -28,6 +33,14 @@ RELEASE_NOTES_URL_PREFIX="${RELEASE_NOTES_URL_PREFIX:-$DOWNLOAD_URL_PREFIX}"
 PUBLIC_FEED_URL="${PUBLIC_FEED_URL:-https://tahseen-kakar.github.io/harbor/appcast.xml}"
 MAXIMUM_DELTAS="${MAXIMUM_DELTAS:-0}"
 RUN_RELEASE_SMOKE="${RUN_RELEASE_SMOKE:-YES}"
+PREPARE_RELEASE_APP="${PREPARE_RELEASE_APP:-YES}"
+ALLOW_DIRTY_RELEASE="${ALLOW_DIRTY_RELEASE:-NO}"
+NOTARY_PROFILE="${NOTARY_PROFILE:-XCode Notary}"
+TEAM_ID="${TEAM_ID:-2837P98423}"
+SIGN_IDENTITY="${SIGN_IDENTITY:-Developer ID Application: ENOU Labs LLC ($TEAM_ID)}"
+EXPORT_OPTIONS_PLIST_PROVIDED="${EXPORT_OPTIONS_PLIST+x}"
+EXPORT_OPTIONS_PLIST="${EXPORT_OPTIONS_PLIST:-$PROJECT_DIR/build/ExportOptionsDeveloperID.plist}"
+REQUIRE_RELEASE_NOTES="${REQUIRE_RELEASE_NOTES:-YES}"
 
 usage() {
   echo "Usage: $0 [v<version>|<version>]" >&2
@@ -110,6 +123,117 @@ ensure_github_release() {
     --notes "$RELEASE_NOTES"
 }
 
+ensure_clean_worktree() {
+  if [ "$ALLOW_DIRTY_RELEASE" = "YES" ]; then
+    return
+  fi
+
+  if ! git diff --quiet || ! git diff --cached --quiet || [ -n "$(git ls-files --others --exclude-standard)" ]; then
+    echo "Working tree is dirty. Commit or stash changes before release, or set ALLOW_DIRTY_RELEASE=YES." >&2
+    git status --short >&2
+    exit 1
+  fi
+}
+
+write_default_export_options() {
+  mkdir -p "$(dirname "$EXPORT_OPTIONS_PLIST")"
+
+  cat > "$EXPORT_OPTIONS_PLIST" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>method</key>
+	<string>developer-id</string>
+	<key>signingStyle</key>
+	<string>automatic</string>
+	<key>teamID</key>
+	<string>$TEAM_ID</string>
+</dict>
+</plist>
+EOF
+}
+
+verify_app_signature() {
+  codesign --verify --deep --strict --verbose=4 "$APP_PATH"
+  codesign --verify --strict --verbose=4 "$APP_PATH/Contents/Frameworks/Sparkle.framework/Versions/Current/XPCServices/Installer.xpc"
+}
+
+resign_exported_app() {
+  SPARKLE_VERSION_DIR="$APP_PATH/Contents/Frameworks/Sparkle.framework/Versions/B"
+
+  if [ ! -d "$SPARKLE_VERSION_DIR" ]; then
+    SPARKLE_VERSION_DIR="$APP_PATH/Contents/Frameworks/Sparkle.framework/Versions/Current"
+  fi
+
+  if [ ! -d "$SPARKLE_VERSION_DIR" ]; then
+    echo "Sparkle framework version directory not found in exported app." >&2
+    exit 1
+  fi
+
+  echo "Re-signing exported app with $SIGN_IDENTITY..."
+  xattr -cr "$APP_PATH"
+
+  if [ -d "$APP_PATH/Contents/Resources/TorrentRuntime/arm64/lib" ]; then
+    find "$APP_PATH/Contents/Resources/TorrentRuntime/arm64/lib" -type f -name '*.dylib' -exec \
+      codesign --force --sign "$SIGN_IDENTITY" --options runtime --timestamp {} \;
+  fi
+
+  if [ -f "$APP_PATH/Contents/Resources/TorrentRuntime/arm64/bin/aria2c" ]; then
+    codesign --force --sign "$SIGN_IDENTITY" --options runtime --timestamp "$APP_PATH/Contents/Resources/TorrentRuntime/arm64/bin/aria2c"
+  fi
+
+  # TODO: keep Sparkle's nested signing explicit until Xcode export stops corrupting Installer.xpc.
+  codesign --force --sign "$SIGN_IDENTITY" --options runtime --timestamp "$SPARKLE_VERSION_DIR/XPCServices/Installer.xpc"
+  codesign --force --sign "$SIGN_IDENTITY" --options runtime --timestamp "$SPARKLE_VERSION_DIR/Autoupdate"
+  codesign --force --sign "$SIGN_IDENTITY" --options runtime --timestamp "$SPARKLE_VERSION_DIR/Updater.app"
+  codesign --force --sign "$SIGN_IDENTITY" --options runtime --timestamp "$SPARKLE_VERSION_DIR/XPCServices/Downloader.xpc"
+  codesign --force --sign "$SIGN_IDENTITY" --options runtime --timestamp "$APP_PATH/Contents/Frameworks/Sparkle.framework"
+  codesign --force --sign "$SIGN_IDENTITY" --options runtime --timestamp "$APP_PATH"
+
+  verify_app_signature
+}
+
+prepare_release_app() {
+  NOTARY_TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/$PROJECT_NAME-notary.XXXXXX")"
+  NOTARY_ZIP="$NOTARY_TMP_DIR/$PROJECT_NAME.zip"
+
+  echo "Archiving $PROJECT_NAME..."
+  rm -rf "$ARCHIVE_PATH" "$EXPORT_DIR"
+  mkdir -p "$(dirname "$ARCHIVE_PATH")"
+
+  xcodebuild \
+    -project "$PROJECT_FILE" \
+    -scheme "$SCHEME" \
+    -configuration "$CONFIGURATION" \
+    -destination 'generic/platform=macOS' \
+    -archivePath "$ARCHIVE_PATH" \
+    archive
+
+  if [ -z "${EXPORT_OPTIONS_PLIST_PROVIDED:-}" ]; then
+    write_default_export_options
+  fi
+
+  echo "Exporting Developer ID app..."
+  xcodebuild \
+    -exportArchive \
+    -archivePath "$ARCHIVE_PATH" \
+    -exportPath "$EXPORT_DIR" \
+    -exportOptionsPlist "$EXPORT_OPTIONS_PLIST"
+
+  resign_exported_app
+
+  echo "Submitting app for notarization with keychain profile: $NOTARY_PROFILE"
+  ditto -c -k --keepParent "$APP_PATH" "$NOTARY_ZIP"
+  xcrun notarytool submit "$NOTARY_ZIP" --keychain-profile "$NOTARY_PROFILE" --wait
+  rm -rf "$NOTARY_TMP_DIR"
+
+  echo "Stapling notarized app..."
+  xcrun stapler staple "$APP_PATH"
+  xcrun stapler validate "$APP_PATH"
+  verify_app_signature
+}
+
 if [ "$#" -gt 1 ]; then
   usage
   exit 1
@@ -117,9 +241,27 @@ fi
 
 REQUESTED_TAG="${1:-}"
 
-if [ ! -d "$APP_PATH" ]; then
+if [ -n "${RELEASE_NOTES_FILE:-}" ]; then
+  RELEASE_NOTES="$(cat "$RELEASE_NOTES_FILE")"
+fi
+
+if [ "$REQUIRE_RELEASE_NOTES" != "NO" ] && [ -z "${RELEASE_NOTES:-}" ]; then
+  echo "Set RELEASE_NOTES or RELEASE_NOTES_FILE before publishing." >&2
+  exit 1
+fi
+
+if [ "$RUN_RELEASE_SMOKE" != "NO" ] && [ "${HARBOR_SMOKE_CONFIRM_NO_RUNNING_HARBOR:-NO}" != "YES" ]; then
+  echo "Quit Harbor first, then set HARBOR_SMOKE_CONFIRM_NO_RUNNING_HARBOR=YES." >&2
+  exit 1
+fi
+
+ensure_clean_worktree
+
+if [ "$PREPARE_RELEASE_APP" != "NO" ]; then
+  prepare_release_app
+elif [ ! -d "$APP_PATH" ]; then
   echo "Expected an exported notarized app bundle at: $APP_PATH" >&2
-  echo "Export Harbor.app from Xcode Organizer to $EXPORT_DIR first." >&2
+  echo "Run without PREPARE_RELEASE_APP=NO to archive, export, notarize, and staple automatically." >&2
   exit 1
 fi
 
@@ -200,7 +342,7 @@ xcrun stapler validate "$APP_PATH"
 
 echo "Validating app signature..."
 xcrun stapler validate "$APP_PATH"
-codesign --verify --deep --strict --verbose=4 "$APP_PATH"
+verify_app_signature
 
 ensure_release_tag
 ensure_github_release
