@@ -16,13 +16,13 @@ enum HarborPreviewFixtures {
     }
 
     static func makeCenter(
-        selectedFilter: DownloadFilter = .all,
+        selectedSidebarSelection: DownloadSidebarSelection = .filter(.all),
         selectedDownloadIndex: Int = 1
     ) -> DownloadCenter {
         let settings = makeSettings()
         let center = DownloadCenter(settings: settings)
         center.downloads = sampleDownloads()
-        center.selectedFilter = selectedFilter
+        center.selectedSidebarSelection = selectedSidebarSelection
         center.selectedDownloadID = center.downloads[safe: selectedDownloadIndex]?.id
         return center
     }
@@ -46,7 +46,8 @@ enum HarborPreviewFixtures {
             startedAt: now.addingTimeInterval(-3_420),
             updatedAt: now.addingTimeInterval(-120),
             backendIdentifier: "preview-torrent",
-            metadataName: "Cold Storage (2026) [1080p] [WEBRip] [x265]"
+            metadataName: "Cold Storage (2026) [1080p] [WEBRip] [x265]",
+            tags: ["Movies", "Archive"]
         )
 
         let direct = DownloadItem(
@@ -64,7 +65,8 @@ enum HarborPreviewFixtures {
             speedBytesPerSecond: 0,
             startedAt: now.addingTimeInterval(-7_100),
             finishedAt: now.addingTimeInterval(-6_900),
-            updatedAt: now.addingTimeInterval(-6_900)
+            updatedAt: now.addingTimeInterval(-6_900),
+            tags: ["Apps"]
         )
 
         let magnet = DownloadItem(
@@ -83,7 +85,8 @@ enum HarborPreviewFixtures {
             startedAt: now.addingTimeInterval(-840),
             updatedAt: now.addingTimeInterval(-8),
             backendIdentifier: "preview-magnet",
-            metadataName: "Ubuntu ISO"
+            metadataName: "Ubuntu ISO",
+            tags: ["Linux", "ISO"]
         )
 
         let failed = DownloadItem(
@@ -100,7 +103,8 @@ enum HarborPreviewFixtures {
             speedBytesPerSecond: 0,
             startedAt: now.addingTimeInterval(-1_760),
             updatedAt: now.addingTimeInterval(-300),
-            lastError: "The network connection was lost."
+            lastError: "The network connection was lost.",
+            tags: ["Archive"]
         )
 
         return [magnet, torrent, direct, failed]

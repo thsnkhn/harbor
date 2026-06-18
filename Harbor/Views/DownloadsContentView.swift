@@ -66,7 +66,7 @@ struct DownloadsContentView: View {
                 }
             }
         }
-        .navigationTitle(center.selectedFilter.title)
+        .navigationTitle(center.selectedSidebarSelection.title)
     }
 
     private var emptyState: some View {
@@ -82,41 +82,51 @@ struct DownloadsContentView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    private var emptyTitle: LocalizedStringResource {
-        switch center.selectedFilter {
-        case .all:
-            "No Downloads Yet"
-        case .active:
-            "Nothing Running"
-        case .paused:
-            "No Paused Downloads"
-        case .completed:
-            "Nothing Completed"
-        case .failed:
-            "No Failures"
-        case .cancelled:
-            "No Cancelled Downloads"
+    private var emptyTitle: String {
+        switch center.selectedSidebarSelection {
+        case .filter(let filter):
+            switch filter {
+            case .all:
+                "No Downloads Yet"
+            case .active:
+                "Nothing Running"
+            case .paused:
+                "No Paused Downloads"
+            case .completed:
+                "Nothing Completed"
+            case .failed:
+                "No Failures"
+            case .cancelled:
+                "No Cancelled Downloads"
+            }
+        case .tag(let tag):
+            "No Downloads Tagged \"\(tag)\""
         }
     }
 
     private var emptyImage: String {
-        center.selectedFilter.systemImage
+        center.selectedSidebarSelection.systemImage
     }
 
-    private var emptyDescription: LocalizedStringResource {
-        switch center.selectedFilter {
-        case .all:
-            "Paste an HTTP or HTTPS URL to start building your queue."
-        case .active:
-            "Queued and running transfers appear here."
-        case .paused:
-            "Paused transfers and browser-required downloads stay here until you continue them."
-        case .completed:
-            "Finished files will stay listed until you clear them."
-        case .failed:
-            "Network or filesystem errors surface here with retry support."
-        case .cancelled:
-            "Cancelled items stay in history until you remove them."
+    private var emptyDescription: String {
+        switch center.selectedSidebarSelection {
+        case .filter(let filter):
+            switch filter {
+            case .all:
+                "Paste an HTTP or HTTPS URL to start building your queue."
+            case .active:
+                "Queued and running transfers appear here."
+            case .paused:
+                "Paused transfers and browser-required downloads stay here until you continue them."
+            case .completed:
+                "Finished files will stay listed until you clear them."
+            case .failed:
+                "Network or filesystem errors surface here with retry support."
+            case .cancelled:
+                "Cancelled items stay in history until you remove them."
+            }
+        case .tag:
+            "Add this tag to a download from the detail inspector or the Add Download sheet."
         }
     }
 

@@ -6,7 +6,7 @@ struct SidebarView: View {
     var body: some View {
         @Bindable var center = center
 
-        List(selection: $center.selectedFilter) {
+        List(selection: $center.selectedSidebarSelection) {
             Section("Library") {
                 ForEach(DownloadFilter.allCases) { filter in
                     HStack(spacing: 10) {
@@ -15,7 +15,21 @@ struct SidebarView: View {
                         Text(center.count(for: filter), format: .number)
                             .foregroundStyle(.secondary)
                     }
-                    .tag(filter)
+                    .tag(DownloadSidebarSelection.filter(filter))
+                }
+            }
+
+            if center.availableTags.isEmpty == false {
+                Section("Tags") {
+                    ForEach(center.availableTags, id: \.self) { tag in
+                        HStack(spacing: 10) {
+                            Label(tag, systemImage: "tag")
+                            Spacer()
+                            Text(center.count(forTag: tag), format: .number)
+                                .foregroundStyle(.secondary)
+                        }
+                        .tag(DownloadSidebarSelection.tag(tag))
+                    }
                 }
             }
         }

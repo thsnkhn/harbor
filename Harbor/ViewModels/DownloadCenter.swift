@@ -20,7 +20,7 @@ final class DownloadCenter {
     @ObservationIgnored private var pendingExternalAddSheetDrafts: [AddDownloadSheetDraft] = []
 
     var downloads: [DownloadItem] = []
-    var selectedFilter: DownloadFilter = .all
+    var selectedSidebarSelection: DownloadSidebarSelection = .filter(.all)
     var selectedDownloadID: UUID?
     var searchText = ""
     var sortMode: DownloadSortMode = .newest
@@ -115,7 +115,7 @@ final class DownloadCenter {
 
     var filteredDownloads: [DownloadItem] {
         let filtered = downloads.filter { item in
-            guard selectedFilter.includes(item) else {
+            guard selectedSidebarSelection.includes(item) else {
                 return false
             }
 
@@ -127,6 +127,7 @@ final class DownloadCenter {
             return item.displayName.localizedCaseInsensitiveContains(query)
                 || item.sourceDisplayText.localizedCaseInsensitiveContains(query)
                 || item.sourceHost.localizedCaseInsensitiveContains(query)
+                || item.tags.contains { $0.localizedCaseInsensitiveContains(query) }
         }
 
         switch sortMode {
@@ -229,8 +230,30 @@ final class DownloadCenter {
         selectedDownload?.fileLocationURL != nil
     }
 
+    var availableTags: [String] {
+        var seen = Set<String>()
+        var tags: [String] = []
+
+        for tag in downloads.flatMap(\.tags) {
+            let key = tag.lowercased()
+            guard seen.insert(key).inserted else {
+                continue
+            }
+
+            tags.append(tag)
+        }
+
+        return tags.sorted {
+            $0.localizedCaseInsensitiveCompare($1) == .orderedAscending
+        }
+    }
+
     func count(for filter: DownloadFilter) -> Int {
         downloads.filter { filter.includes($0) }.count
+    }
+
+    func count(forTag tag: String) -> Int {
+        downloads.filter { DownloadTags.contains($0.tags, tag: tag) }.count
     }
 
     func installExternalOpenHandlerIfNeeded() {
@@ -299,7 +322,8 @@ final class DownloadCenter {
             backend: backend,
             preferredFilename: preferredFilename,
             destinationFolderPath: request.destinationFolder.path,
-            status: request.shouldStartImmediately ? .queued : .paused
+            status: request.shouldStartImmediately ? .queued : .paused,
+            tags: request.tags
         )
 
         if request.sourceKind == .magnetLink {
@@ -471,9 +495,7 @@ final class DownloadCenter {
 
         downloads.removeAll { $0.id == id }
 
-        if selectedDownloadID == id {
-            selectedDownloadID = filteredDownloads.first?.id ?? downloads.first?.id
-        }
+        repairSelectionIfNeeded()
 
         schedulePersist()
         startNextQueuedDownloadsIfNeeded()
@@ -482,18 +504,30 @@ final class DownloadCenter {
     func clearCompleted() {
         cleanupBackendIdentifiers(for: downloads.filter { $0.status == .completed })
         downloads.removeAll { $0.status == .completed }
-        if selectedDownload?.status == .completed {
-            selectedDownloadID = filteredDownloads.first?.id ?? downloads.first?.id
-        }
+        repairSelectionIfNeeded()
         schedulePersist()
     }
 
     func clearFailed() {
         cleanupBackendIdentifiers(for: downloads.filter { $0.status == .failed })
         downloads.removeAll { $0.status == .failed }
-        if selectedDownload?.status == .failed {
-            selectedDownloadID = filteredDownloads.first?.id ?? downloads.first?.id
+        repairSelectionIfNeeded()
+        schedulePersist()
+    }
+
+    func setTags(for id: UUID, tags: [String]) {
+        guard let item = item(for: id) else {
+            return
         }
+
+        let normalizedTags = DownloadTags.normalized(tags)
+        guard item.tags != normalizedTags else {
+            return
+        }
+
+        item.tags = normalizedTags
+        item.updatedAt = .now
+        repairSelectionIfNeeded()
         schedulePersist()
     }
 
@@ -1130,6 +1164,24 @@ final class DownloadCenter {
 
     private func item(for id: UUID) -> DownloadItem? {
         downloads.first { $0.id == id }
+    }
+
+    private func repairSelectionIfNeeded() {
+        if case .tag(let tag) = selectedSidebarSelection {
+            if let displayTag = availableTags.first(where: { $0.caseInsensitiveCompare(tag) == .orderedSame }) {
+                selectedSidebarSelection = .tag(displayTag)
+            } else {
+                selectedSidebarSelection = .filter(.all)
+            }
+        }
+
+        guard let selectedDownloadID,
+              filteredDownloads.contains(where: { $0.id == selectedDownloadID }) == false
+        else {
+            return
+        }
+
+        self.selectedDownloadID = filteredDownloads.first?.id ?? downloads.first?.id
     }
 
     private func finalizeFileDownload(
