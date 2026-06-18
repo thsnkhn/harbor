@@ -26,7 +26,10 @@ struct DownloadsContentView: View {
                     .disabledCustomizationBehavior(.visibility)
 
                     TableColumn("Status") { item in
-                        DownloadStatusBadge(status: item.status)
+                        DownloadStatusBadge(
+                            status: item.status,
+                            checksumState: item.checksumVerificationState
+                        )
                     }
                     .customizationID("status")
                     .defaultVisibility(.visible)

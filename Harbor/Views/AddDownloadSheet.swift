@@ -5,6 +5,7 @@ struct AddDownloadSheet: View {
     private enum Field: Hashable {
         case sourceURL
         case filename
+        case checksum
     }
 
     let settings: AppSettingsStore
@@ -16,6 +17,7 @@ struct AddDownloadSheet: View {
     @State private var entryMode: AddDownloadEntryMode
     @State private var sourceURLText: String
     @State private var customFilename: String
+    @State private var expectedSHA256: String
     @State private var torrentFileURL: URL?
     @State private var destinationPath: String
     @State private var shouldStartImmediately: Bool
@@ -31,6 +33,7 @@ struct AddDownloadSheet: View {
         _entryMode = State(initialValue: draft.entryMode)
         _sourceURLText = State(initialValue: draft.sourceURLText)
         _customFilename = State(initialValue: draft.customFilename)
+        _expectedSHA256 = State(initialValue: draft.expectedSHA256)
         _torrentFileURL = State(initialValue: draft.torrentFileURL)
         _destinationPath = State(initialValue: draft.destinationFolderURL.path)
         _shouldStartImmediately = State(initialValue: draft.shouldStartImmediately)
@@ -59,6 +62,10 @@ struct AddDownloadSheet: View {
 
                     TextField("Optional file name override", text: $customFilename)
                         .focused($focusedField, equals: Field.filename)
+
+                    TextField("Optional SHA-256 checksum", text: $expectedSHA256)
+                        .font(.system(.body, design: .monospaced))
+                        .focused($focusedField, equals: Field.checksum)
                 } else {
                     LabeledContent("Torrent File") {
                         HStack(spacing: 8) {
@@ -176,6 +183,7 @@ struct AddDownloadSheet: View {
 
         let sourceURL: URL
         let sourceKind: DownloadSourceKind
+        var normalizedExpectedSHA256: String?
 
         switch entryMode {
         case .linkOrMagnet:
@@ -194,6 +202,31 @@ struct AddDownloadSheet: View {
 
             sourceURL = parsedURL
             sourceKind = detectedKind
+
+            let trimmedChecksum = expectedSHA256.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmedChecksum.isEmpty == false {
+                guard detectedKind == .directURL else {
+                    validationMessage = String(
+                        localized: "add.validation.checksum.directOnly",
+                        defaultValue: "Checksum verification is available for direct downloads only.",
+                        comment: "Validation message shown when a checksum is entered for a non-direct download."
+                    )
+                    focusedField = .checksum
+                    return
+                }
+
+                guard let normalizedChecksum = SHA256Checksum.normalized(trimmedChecksum) else {
+                    validationMessage = String(
+                        localized: "add.validation.checksum.sha256",
+                        defaultValue: "Enter a 64-character SHA-256 checksum.",
+                        comment: "Validation message shown when the entered checksum is not a SHA-256 hex digest."
+                    )
+                    focusedField = .checksum
+                    return
+                }
+
+                normalizedExpectedSHA256 = normalizedChecksum
+            }
 
         case .torrentFile:
             guard let torrentFileURL,
@@ -218,6 +251,7 @@ struct AddDownloadSheet: View {
                 sourceKind: sourceKind,
                 sourceURL: sourceURL,
                 customFilename: sourceKind.supportsCustomFilename && trimmedFilename.isEmpty == false ? trimmedFilename : nil,
+                expectedSHA256: sourceKind == .directURL ? normalizedExpectedSHA256 : nil,
                 destinationFolder: folderURL,
                 shouldStartImmediately: shouldStartImmediately
             )

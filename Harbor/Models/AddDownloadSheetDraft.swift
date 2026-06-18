@@ -21,6 +21,7 @@ struct AddDownloadSheetDraft: Identifiable, Sendable {
     let entryMode: AddDownloadEntryMode
     let sourceURLText: String
     let customFilename: String
+    let expectedSHA256: String
     let torrentFileURL: URL?
     let destinationFolderURL: URL
     let shouldStartImmediately: Bool
@@ -30,6 +31,7 @@ struct AddDownloadSheetDraft: Identifiable, Sendable {
         entryMode: AddDownloadEntryMode,
         sourceURLText: String = "",
         customFilename: String = "",
+        expectedSHA256: String = "",
         torrentFileURL: URL? = nil,
         destinationFolderURL: URL,
         shouldStartImmediately: Bool
@@ -38,6 +40,7 @@ struct AddDownloadSheetDraft: Identifiable, Sendable {
         self.entryMode = entryMode
         self.sourceURLText = sourceURLText
         self.customFilename = customFilename
+        self.expectedSHA256 = expectedSHA256
         self.torrentFileURL = torrentFileURL
         self.destinationFolderURL = destinationFolderURL
         self.shouldStartImmediately = shouldStartImmediately

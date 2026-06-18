@@ -2,30 +2,70 @@ import SwiftUI
 
 struct DownloadStatusBadge: View {
     let status: DownloadStatus
+    let checksumState: DownloadChecksumVerificationState?
 
     private var tint: Color {
+        switch checksumState {
+        case .verified:
+            return .green
+        case .failed:
+            return .red
+        case nil:
+            break
+        }
+
         switch status {
         case .queued:
-            .secondary
+            return .secondary
         case .preparing:
-            .orange
+            return .orange
         case .downloading:
-            .blue
+            return .blue
         case .browserSessionRequired:
-            .mint
+            return .mint
         case .paused:
-            .yellow
+            return .yellow
         case .completed:
-            .green
+            return .green
         case .failed:
-            .red
+            return .red
         case .cancelled:
-            .secondary
+            return .secondary
         }
     }
 
+    private var title: LocalizedStringResource {
+        switch checksumState {
+        case .verified:
+            LocalizedStringResource("checksum.verified", defaultValue: "Verified")
+        case .failed:
+            LocalizedStringResource("checksum.failed", defaultValue: "Checksum failed")
+        case nil:
+            status.title
+        }
+    }
+
+    private var systemImage: String {
+        switch checksumState {
+        case .verified:
+            "checkmark.shield.fill"
+        case .failed:
+            "xmark.shield.fill"
+        case nil:
+            status.systemImage
+        }
+    }
+
+    init(
+        status: DownloadStatus,
+        checksumState: DownloadChecksumVerificationState? = nil
+    ) {
+        self.status = status
+        self.checksumState = checksumState
+    }
+
     var body: some View {
-        Label(status.title, systemImage: status.systemImage)
+        Label(title, systemImage: systemImage)
             .font(.caption.weight(.semibold))
             .foregroundStyle(tint)
             .padding(.horizontal, 10)

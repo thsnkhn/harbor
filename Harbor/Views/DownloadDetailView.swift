@@ -35,6 +35,9 @@ private struct DownloadInspectorContent: View {
 
                 DownloadTransferSection(item: item)
                 DownloadStorageSection(item: item)
+                if item.expectedSHA256 != nil {
+                    DownloadChecksumSection(item: item)
+                }
                 DownloadActivitySection(item: item)
 
                 if item.status == .browserSessionRequired {
@@ -128,7 +131,10 @@ private struct DownloadHeader: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-                DownloadStatusBadge(status: item.status)
+                DownloadStatusBadge(
+                    status: item.status,
+                    checksumState: item.checksumVerificationState
+                )
             }
 
             progressBlock
@@ -447,6 +453,25 @@ private struct DownloadStorageSection: View {
                 if let fileLocationPath = item.fileLocationPath {
                     Divider()
                     DownloadValueRow(title: "Saved File", value: fileLocationPath)
+                }
+            }
+        }
+    }
+}
+
+private struct DownloadChecksumSection: View {
+    let item: DownloadItem
+
+    var body: some View {
+        DownloadDetailSection(title: "Checksum") {
+            VStack(spacing: 0) {
+                if let expectedSHA256 = item.expectedSHA256 {
+                    DownloadValueRow(title: "Expected SHA-256", value: expectedSHA256)
+                }
+
+                if let computedSHA256 = item.computedSHA256 {
+                    Divider()
+                    DownloadValueRow(title: "Computed SHA-256", value: computedSHA256)
                 }
             }
         }
