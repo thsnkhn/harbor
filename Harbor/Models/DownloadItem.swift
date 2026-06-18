@@ -95,6 +95,24 @@ struct DownloadActivityEvent: Codable, Identifiable, Hashable, Sendable {
     }
 }
 
+struct TorrentTracker: Codable, Identifiable, Hashable, Sendable {
+    let url: String
+    let status: String?
+    let errorMessage: String?
+
+    var id: String { url }
+
+    nonisolated init(
+        url: String,
+        status: String? = nil,
+        errorMessage: String? = nil
+    ) {
+        self.url = url
+        self.status = status
+        self.errorMessage = errorMessage
+    }
+}
+
 struct DownloadRecord: Codable, Sendable {
     let id: UUID
     let sourceURL: URL
@@ -115,6 +133,8 @@ struct DownloadRecord: Codable, Sendable {
     let resumeData: Data?
     let backendIdentifier: String?
     let metadataName: String?
+    let torrentTrackers: [TorrentTracker]
+    let manualTrackerURLs: [String]
     let activityEvents: [DownloadActivityEvent]
 
     private enum CodingKeys: String, CodingKey {
@@ -137,6 +157,8 @@ struct DownloadRecord: Codable, Sendable {
         case resumeData
         case backendIdentifier
         case metadataName
+        case torrentTrackers
+        case manualTrackerURLs
         case activityEvents
     }
 
@@ -160,6 +182,8 @@ struct DownloadRecord: Codable, Sendable {
         resumeData: Data?,
         backendIdentifier: String?,
         metadataName: String?,
+        torrentTrackers: [TorrentTracker] = [],
+        manualTrackerURLs: [String] = [],
         activityEvents: [DownloadActivityEvent] = []
     ) {
         self.id = id
@@ -181,6 +205,8 @@ struct DownloadRecord: Codable, Sendable {
         self.resumeData = resumeData
         self.backendIdentifier = backendIdentifier
         self.metadataName = metadataName
+        self.torrentTrackers = torrentTrackers
+        self.manualTrackerURLs = manualTrackerURLs
         self.activityEvents = activityEvents
     }
 
@@ -205,6 +231,8 @@ struct DownloadRecord: Codable, Sendable {
         self.resumeData = try container.decodeIfPresent(Data.self, forKey: .resumeData)
         self.backendIdentifier = try container.decodeIfPresent(String.self, forKey: .backendIdentifier)
         self.metadataName = try container.decodeIfPresent(String.self, forKey: .metadataName)
+        self.torrentTrackers = try container.decodeIfPresent([TorrentTracker].self, forKey: .torrentTrackers) ?? []
+        self.manualTrackerURLs = try container.decodeIfPresent([String].self, forKey: .manualTrackerURLs) ?? []
         self.activityEvents = try container.decodeIfPresent([DownloadActivityEvent].self, forKey: .activityEvents) ?? []
     }
 
@@ -229,6 +257,8 @@ struct DownloadRecord: Codable, Sendable {
         try container.encode(resumeData, forKey: .resumeData)
         try container.encode(backendIdentifier, forKey: .backendIdentifier)
         try container.encode(metadataName, forKey: .metadataName)
+        try container.encode(torrentTrackers, forKey: .torrentTrackers)
+        try container.encode(manualTrackerURLs, forKey: .manualTrackerURLs)
         try container.encode(activityEvents, forKey: .activityEvents)
     }
 }
@@ -258,6 +288,8 @@ final class DownloadItem: Identifiable {
     var taskIdentifier: Int?
     var backendIdentifier: String?
     var metadataName: String?
+    var torrentTrackers: [TorrentTracker]
+    var manualTrackerURLs: [String]
     var activityEvents: [DownloadActivityEvent]
 
     init(
@@ -283,6 +315,8 @@ final class DownloadItem: Identifiable {
         taskIdentifier: Int? = nil,
         backendIdentifier: String? = nil,
         metadataName: String? = nil,
+        torrentTrackers: [TorrentTracker] = [],
+        manualTrackerURLs: [String] = [],
         activityEvents: [DownloadActivityEvent] = []
     ) {
         self.id = id
@@ -307,6 +341,8 @@ final class DownloadItem: Identifiable {
         self.taskIdentifier = taskIdentifier
         self.backendIdentifier = backendIdentifier
         self.metadataName = metadataName
+        self.torrentTrackers = torrentTrackers
+        self.manualTrackerURLs = manualTrackerURLs
         self.activityEvents = activityEvents
 
         if self.activityEvents.contains(where: { $0.kind == .added }) == false {
@@ -341,6 +377,8 @@ final class DownloadItem: Identifiable {
             taskIdentifier: nil,
             backendIdentifier: record.backendIdentifier,
             metadataName: record.metadataName,
+            torrentTrackers: record.torrentTrackers,
+            manualTrackerURLs: record.manualTrackerURLs,
             activityEvents: record.activityEvents
         )
     }
@@ -465,6 +503,28 @@ final class DownloadItem: Identifiable {
         lastError.map { Self.displayErrorMessage(from: $0) }
     }
 
+    var displayedTrackers: [TorrentTracker] {
+        var trackerURLs = Set<String>()
+        var displayedTrackers: [TorrentTracker] = []
+
+        for tracker in torrentTrackers where trackerURLs.insert(tracker.url).inserted {
+            displayedTrackers.append(tracker)
+        }
+
+        if sourceKind == .magnetLink {
+            for trackerURL in MagnetLinkMetadata(url: sourceURL).trackerURLs
+                where trackerURLs.insert(trackerURL).inserted {
+                displayedTrackers.append(TorrentTracker(url: trackerURL))
+            }
+        }
+
+        for trackerURL in manualTrackerURLs where trackerURLs.insert(trackerURL).inserted {
+            displayedTrackers.append(TorrentTracker(url: trackerURL))
+        }
+
+        return displayedTrackers
+    }
+
     var isRunning: Bool {
         status.isRunning
     }
@@ -498,6 +558,8 @@ final class DownloadItem: Identifiable {
             resumeData: resumeData,
             backendIdentifier: backendIdentifier,
             metadataName: metadataName,
+            torrentTrackers: torrentTrackers,
+            manualTrackerURLs: manualTrackerURLs,
             activityEvents: activityEvents
         )
     }

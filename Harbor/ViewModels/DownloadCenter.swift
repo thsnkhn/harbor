@@ -16,6 +16,7 @@ final class DownloadCenter {
     @ObservationIgnored private var hasInstalledExternalOpenHandler = false
     @ObservationIgnored private var persistTask: Task<Void, Never>?
     @ObservationIgnored private var torrentRefreshTask: Task<Void, Never>?
+    @ObservationIgnored private var trackerSyncTasks: [UUID: Task<Void, Never>] = [:]
     @ObservationIgnored private var hasShownTorrentBinaryAlert = false
     @ObservationIgnored private var pendingExternalAddSheetDrafts: [AddDownloadSheetDraft] = []
 
@@ -58,6 +59,7 @@ final class DownloadCenter {
     deinit {
         persistTask?.cancel()
         torrentRefreshTask?.cancel()
+        trackerSyncTasks.values.forEach { $0.cancel() }
     }
 
     func initializeIfNeeded() async {
@@ -543,6 +545,53 @@ final class DownloadCenter {
         pasteboard.setString(sourceText, forType: .string)
     }
 
+    @discardableResult
+    func addTracker(_ rawURL: String, to id: UUID) -> Bool {
+        guard let item = item(for: id),
+              item.backend == .aria2 else {
+            return false
+        }
+
+        guard let trackerURL = normalizedTrackerURL(from: rawURL) else {
+            activeAlert = UserAlert(
+                title: "Invalid Tracker URL",
+                message: "Enter an http, https, or udp tracker URL with a host."
+            )
+            return false
+        }
+
+        guard item.displayedTrackers.contains(where: { $0.url == trackerURL }) == false else {
+            return false
+        }
+
+        item.manualTrackerURLs.append(trackerURL)
+        item.torrentTrackers.append(TorrentTracker(url: trackerURL))
+        item.updatedAt = .now
+        schedulePersist()
+        syncManualTrackers(for: item)
+        return true
+    }
+
+    func removeManualTracker(_ trackerURL: String, from id: UUID) {
+        guard let item = item(for: id),
+              item.backend == .aria2,
+              item.manualTrackerURLs.contains(trackerURL) else {
+            return
+        }
+
+        item.manualTrackerURLs.removeAll { $0 == trackerURL }
+        item.torrentTrackers.removeAll { $0.url == trackerURL }
+        item.updatedAt = .now
+        schedulePersist()
+        syncManualTrackers(for: item)
+    }
+
+    func refreshTorrentTrackers(id: UUID) {
+        Task { @MainActor [weak self] in
+            await self?.refreshTorrentDownload(id: id)
+        }
+    }
+
     func continueInBrowser(id: UUID) {
         guard let item = item(for: id),
               item.sourceKind == .directURL
@@ -655,7 +704,8 @@ final class DownloadCenter {
                     let replacementIdentifier = try await torrentService.addDownload(
                         sourceKind: refreshedItem.sourceKind,
                         sourceURL: refreshedItem.sourceURL,
-                        destinationFolderPath: refreshedItem.destinationFolderPath
+                        destinationFolderPath: refreshedItem.destinationFolderPath,
+                        manualTrackerURLs: refreshedItem.manualTrackerURLs
                     )
 
                     guard item(for: id) != nil else {
@@ -669,7 +719,8 @@ final class DownloadCenter {
                 let backendIdentifier = try await torrentService.addDownload(
                     sourceKind: currentItem.sourceKind,
                     sourceURL: currentItem.sourceURL,
-                    destinationFolderPath: currentItem.destinationFolderPath
+                    destinationFolderPath: currentItem.destinationFolderPath,
+                    manualTrackerURLs: currentItem.manualTrackerURLs
                 )
                 guard item(for: id) != nil else {
                     await torrentService.remove(gid: backendIdentifier)
@@ -898,6 +949,7 @@ final class DownloadCenter {
         item.speedBytesPerSecond = snapshot.downloadSpeed
         item.uploadBytesPerSecond = snapshot.uploadSpeed
         item.metadataName = snapshot.metadataName ?? item.metadataName
+        item.torrentTrackers = snapshot.trackers
         item.updatedAt = .now
 
         if let primaryPath = snapshot.primaryPath {
@@ -1513,6 +1565,96 @@ final class DownloadCenter {
             defaultValue: "Torrent Engine Error",
             comment: "Alert title shown when the torrent backend reports an error."
         )
+    }
+
+    private func syncManualTrackers(for item: DownloadItem) {
+        let itemID = item.id
+        guard item.backendIdentifier != nil,
+              trackerSyncTasks[itemID] == nil else {
+            return
+        }
+
+        trackerSyncTasks[itemID] = Task { @MainActor [weak self] in
+            guard let self else {
+                return
+            }
+
+            defer {
+                self.trackerSyncTasks[itemID] = nil
+            }
+
+            while Task.isCancelled == false {
+                guard let item = self.item(for: itemID) else {
+                    return
+                }
+
+                guard let backendIdentifier = item.backendIdentifier else {
+                    return
+                }
+
+                let trackerURLs = item.manualTrackerURLs
+
+                do {
+                    try await self.torrentService.updateManualTrackers(
+                        gid: backendIdentifier,
+                        trackerURLs: trackerURLs
+                    )
+                    await self.refreshTorrentDownload(id: itemID)
+                } catch {
+                    guard let item = self.item(for: itemID) else {
+                        return
+                    }
+
+                    item.lastError = error.localizedDescription
+                    item.updatedAt = .now
+                    self.schedulePersist()
+                    return
+                }
+
+                guard let latestItem = self.item(for: itemID),
+                      latestItem.backendIdentifier == backendIdentifier,
+                      latestItem.manualTrackerURLs != trackerURLs else {
+                    return
+                }
+            }
+        }
+    }
+
+    private func refreshTorrentDownload(id: UUID) async {
+        guard let currentItem = item(for: id),
+              currentItem.backend == .aria2,
+              let backendIdentifier = currentItem.backendIdentifier else {
+            return
+        }
+
+        do {
+            let snapshot = try await torrentService.status(for: backendIdentifier)
+            guard let refreshedItem = item(for: id) else {
+                return
+            }
+
+            apply(snapshot: snapshot, to: refreshedItem)
+            schedulePersist()
+        } catch {
+            currentItem.lastError = error.localizedDescription
+            currentItem.updatedAt = .now
+            schedulePersist()
+        }
+    }
+
+    private func normalizedTrackerURL(from rawURL: String) -> String? {
+        let trimmedURL = rawURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmedURL.isEmpty == false,
+              var components = URLComponents(string: trimmedURL),
+              let scheme = components.scheme?.lowercased(),
+              ["http", "https", "udp"].contains(scheme),
+              let host = components.host,
+              host.isEmpty == false else {
+            return nil
+        }
+
+        components.scheme = scheme
+        return components.url?.absoluteString
     }
 
     private func schedulePersist() {

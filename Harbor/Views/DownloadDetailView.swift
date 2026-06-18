@@ -35,6 +35,9 @@ private struct DownloadInspectorContent: View {
 
                 DownloadTransferSection(item: item)
                 DownloadStorageSection(item: item)
+                if item.backend == .aria2 {
+                    DownloadTrackersSection(item: item, center: center)
+                }
                 DownloadActivitySection(item: item)
 
                 if item.status == .browserSessionRequired {
@@ -449,6 +452,144 @@ private struct DownloadStorageSection: View {
                     DownloadValueRow(title: "Saved File", value: fileLocationPath)
                 }
             }
+        }
+    }
+}
+
+private struct DownloadTrackersSection: View {
+    let item: DownloadItem
+    let center: DownloadCenter
+
+    @State private var trackerURL = ""
+
+    var body: some View {
+        DownloadDetailSection(title: "Trackers") {
+            VStack(alignment: .leading, spacing: 10) {
+                trackerInput
+
+                if item.displayedTrackers.isEmpty {
+                    Text("No trackers reported yet.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .padding(.vertical, 9)
+                } else {
+                    VStack(spacing: 0) {
+                        let trackers = item.displayedTrackers
+
+                        ForEach(Array(trackers.enumerated()), id: \.element.id) { index, tracker in
+                            TorrentTrackerRow(
+                                tracker: tracker,
+                                isManual: item.manualTrackerURLs.contains(tracker.url),
+                                remove: {
+                                    center.removeManualTracker(tracker.url, from: item.id)
+                                }
+                            )
+
+                            if index < trackers.count - 1 {
+                                Divider()
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private var trackerInput: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 8) {
+                trackerTextField
+                addButton
+                refreshButton
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                trackerTextField
+                HStack(spacing: 8) {
+                    addButton
+                    refreshButton
+                }
+            }
+        }
+    }
+
+    private var trackerTextField: some View {
+        TextField("Tracker URL", text: $trackerURL)
+            .textFieldStyle(.roundedBorder)
+            .frame(minWidth: 220)
+            .onSubmit(addTracker)
+    }
+
+    private var addButton: some View {
+        Button(action: addTracker) {
+            Label("Add", systemImage: "plus")
+        }
+        .buttonStyle(LiquidPillButtonStyle(prominent: false))
+        .disabled(trackerURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+    }
+
+    private var refreshButton: some View {
+        Button {
+            center.refreshTorrentTrackers(id: item.id)
+        } label: {
+            Label("Refresh", systemImage: "arrow.clockwise")
+        }
+        .buttonStyle(LiquidPillButtonStyle(prominent: false))
+        .help("Refresh tracker list")
+    }
+
+    private func addTracker() {
+        if center.addTracker(trackerURL, to: item.id) {
+            trackerURL = ""
+        }
+    }
+}
+
+private struct TorrentTrackerRow: View {
+    let tracker: TorrentTracker
+    let isManual: Bool
+    let remove: () -> Void
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(tracker.url)
+                    .font(.callout)
+                    .lineLimit(2)
+                    .textSelection(.enabled)
+
+                trackerMetadata
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            if isManual {
+                Button(action: remove) {
+                    Image(systemName: "minus.circle")
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                .help("Remove tracker")
+            }
+        }
+        .padding(.vertical, 9)
+    }
+
+    @ViewBuilder
+    private var trackerMetadata: some View {
+        if let errorMessage = tracker.errorMessage, errorMessage.isEmpty == false {
+            Text(errorMessage)
+                .font(.caption)
+                .foregroundStyle(.red)
+                .lineLimit(2)
+                .textSelection(.enabled)
+        } else if let status = tracker.status, status.isEmpty == false {
+            Text(status)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        } else if isManual {
+            Text("Manual")
+                .font(.caption.weight(.medium))
+                .foregroundStyle(.secondary)
         }
     }
 }
