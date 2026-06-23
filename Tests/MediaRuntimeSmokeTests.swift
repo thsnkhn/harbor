@@ -59,6 +59,7 @@ struct MediaRuntimeSmokeTests {
         try assert(metadata.isCollection, "Multiple entries should be collection")
         try assert(metadata.entryCount == 2, "Entry count should parse")
         try assert(metadata.expectedBytes == 2000, "Collection expected bytes should use largest known entry")
+        try assert(metadata.defaultFormatPreference == .original, "Collection default format should preserve originals")
     }
 
     private static func testProgressAndFinalPathParsers() throws {

@@ -38,7 +38,7 @@ struct MediaDownloadMetadata: Codable, Equatable, Sendable {
     }
 
     nonisolated var defaultFormatPreference: MediaDownloadFormatPreference {
-        mediaType == .image ? .original : .bestMP4
+        mediaType == .video ? .bestMP4 : .original
     }
 }
 

@@ -242,7 +242,7 @@ struct AddDownloadSheet: View {
                 return hasMediaSavePermission
             }
 
-            if isResolvingMedia {
+            if isResolvingMedia, shouldWaitForMediaPreview(for: parsedURL) {
                 return false
             }
 
@@ -314,12 +314,14 @@ struct AddDownloadSheet: View {
             if detectedKind == .directURL {
                 if let mediaPreview {
                     resolvedMediaPreview = mediaPreview
-                } else {
+                } else if shouldWaitForMediaPreview(for: parsedURL) {
                     resolvedMediaPreview = await resolveMediaPreview(
                         for: parsedURL,
-                        showErrors: isKnownMediaHost(parsedURL),
+                        showErrors: true,
                         generation: generation
                     )
+                } else {
+                    resolvedMediaPreview = nil
                 }
             } else {
                 resolvedMediaPreview = nil
@@ -550,6 +552,10 @@ struct AddDownloadSheet: View {
     private func isUsableMediaMetadata(_ metadata: MediaDownloadMetadata) -> Bool {
         let extractorKey = metadata.extractorKey?.lowercased()
         return metadata.mediaType != .unknown || extractorKey != "generic"
+    }
+
+    private func shouldWaitForMediaPreview(for url: URL) -> Bool {
+        isKnownMediaHost(url)
     }
 
     private func isKnownMediaHost(_ url: URL) -> Bool {

@@ -143,6 +143,7 @@
 /* Begin PBXShellScriptBuildPhase section */
 		0D190F562F6365560036F3C2 /* Sign Embedded Runtimes */ = {
 			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
 			buildActionMask = 2147483647;
 			files = (
 			);
@@ -169,6 +170,7 @@
 		};
 		0DFA3D392F6F7A79006B52A1 /* Copy Vendored Runtimes */ = {
 			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
 			buildActionMask = 2147483647;
 			files = (
 			);
