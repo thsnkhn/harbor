@@ -46,7 +46,13 @@ struct RootView: View {
         .sheet(item: $center.addSheetDraft, onDismiss: {
             center.handleAddSheetDismissal()
         }) { draft in
-            AddDownloadSheet(settings: settings, draft: draft) { request in
+            AddDownloadSheet(
+                settings: settings,
+                draft: draft,
+                mediaPreviewProvider: { url in
+                    try await center.previewMediaDownload(for: url)
+                }
+            ) { request in
                 center.queueDownload(request)
             }
         }

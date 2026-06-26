@@ -12,11 +12,15 @@ final class DownloadCenter {
     @ObservationIgnored private var coordinator: DownloadCoordinator! = nil
     @ObservationIgnored private var browserCoordinator: BrowserDownloadCoordinator! = nil
     @ObservationIgnored private let torrentService: Aria2TorrentService
+    @ObservationIgnored private var mediaService: MediaDownloadService! = nil
     @ObservationIgnored private var hasLoaded = false
     @ObservationIgnored private var hasInstalledExternalOpenHandler = false
     @ObservationIgnored private var persistTask: Task<Void, Never>?
     @ObservationIgnored private var torrentRefreshTask: Task<Void, Never>?
     @ObservationIgnored private var hasShownTorrentBinaryAlert = false
+    @ObservationIgnored private var hasShownMediaRuntimeAlert = false
+    @ObservationIgnored private var isShuttingDown = false
+    @ObservationIgnored private var mediaStartIDs: Set<UUID> = []
     @ObservationIgnored private var pendingExternalAddSheetDrafts: [AddDownloadSheetDraft] = []
 
     var downloads: [DownloadItem] = []
@@ -33,13 +37,19 @@ final class DownloadCenter {
         persistence: DownloadPersistence = DownloadPersistence(),
         destinationResolver: DownloadDestinationResolver = DownloadDestinationResolver(),
         notificationService: DownloadNotificationService = DownloadNotificationService(),
-        torrentService: Aria2TorrentService? = nil
+        torrentService: Aria2TorrentService? = nil,
+        mediaService: MediaDownloadService? = nil
     ) {
         self.settings = settings
         self.persistence = persistence
         self.destinationResolver = destinationResolver
         self.notificationService = notificationService
         self.torrentService = torrentService ?? Aria2TorrentService(transferSettings: settings.transferSettings)
+        self.mediaService = mediaService ?? MediaDownloadService { [weak self] event in
+            Task { @MainActor [weak self] in
+                self?.handle(event)
+            }
+        }
         self.coordinator = DownloadCoordinator(transferSettings: settings.transferSettings) { [weak self] event in
             Task { @MainActor [weak self] in
                 self?.handle(event)
@@ -58,6 +68,9 @@ final class DownloadCenter {
     deinit {
         persistTask?.cancel()
         torrentRefreshTask?.cancel()
+        Task { [mediaService] in
+            await mediaService?.shutdown()
+        }
     }
 
     func initializeIfNeeded() async {
@@ -77,7 +90,7 @@ final class DownloadCenter {
                     item.taskIdentifier = nil
                     item.speedBytesPerSecond = 0
 
-                    if item.backend == .aria2 {
+                    if item.backend == .aria2 || item.backend == .ytDlp {
                         item.backendIdentifier = nil
                     }
 
@@ -280,8 +293,66 @@ final class DownloadCenter {
         )
     }
 
+    func shutdownForTermination() async {
+        isShuttingDown = true
+        persistTask?.cancel()
+        torrentRefreshTask?.cancel()
+
+        let restoredStatus: DownloadStatus = settings.startDownloadsAutomatically ? .queued : .paused
+        let pausedMessage = String(
+            localized: "download.restore.pausedAfterQuit",
+            defaultValue: "Paused after quit.",
+            comment: "Status message shown when a download is paused because Harbor is quitting."
+        )
+
+        let activeItems = downloads.filter { item in
+            item.status == .queued || item.status == .preparing || item.isRunning
+        }
+
+        for item in activeItems {
+            switch item.backend {
+            case .urlSession:
+                if item.taskIdentifier != nil {
+                    coordinator.pauseDownload(id: item.id)
+                }
+            case .aria2:
+                if let backendIdentifier = item.backendIdentifier {
+                    try? await torrentService.pause(gid: backendIdentifier)
+                }
+            case .ytDlp:
+                await mediaService.pause(id: item.id)
+            }
+
+            setStatus(for: item, to: restoredStatus)
+            item.taskIdentifier = nil
+            item.backendIdentifier = nil
+            item.speedBytesPerSecond = 0
+            item.uploadBytesPerSecond = 0
+            item.updatedAt = .now
+            if restoredStatus == .paused {
+                item.lastError = pausedMessage
+            }
+        }
+
+        await mediaService.shutdown()
+        await torrentService.shutdown()
+        try? await persistence.save(downloads.map { $0.makeRecord() })
+    }
+
+    func previewMediaDownload(for url: URL) async throws -> MediaDownloadMetadata? {
+        let scheme = url.scheme?.lowercased()
+        let isHTTPURL = scheme == "http" || scheme == "https"
+        guard url.isFileURL == false,
+              isHTTPURL,
+              url.pathExtension.lowercased() != "torrent" else {
+            return nil
+        }
+
+        return try await mediaService.metadata(for: url)
+    }
+
     func queueDownload(_ request: AddDownloadRequest) {
-        let backend: DownloadBackend = request.sourceKind == .directURL ? .urlSession : .aria2
+        let backend = backend(for: request.sourceKind)
         let preferredFilename: String?
         if request.sourceKind.supportsCustomFilename {
             preferredFilename = destinationResolver.resolvedFilename(
@@ -299,7 +370,10 @@ final class DownloadCenter {
             backend: backend,
             preferredFilename: preferredFilename,
             destinationFolderPath: request.destinationFolder.path,
-            status: request.shouldStartImmediately ? .queued : .paused
+            status: request.shouldStartImmediately ? .queued : .paused,
+            metadataName: request.mediaMetadata?.title,
+            mediaMetadata: request.mediaMetadata,
+            mediaFormatPreference: request.mediaFormatPreference
         )
 
         if request.sourceKind == .magnetLink {
@@ -313,6 +387,17 @@ final class DownloadCenter {
             startOrQueueDownload(id: item.id)
         } else {
             schedulePersist()
+        }
+    }
+
+    private func backend(for sourceKind: DownloadSourceKind) -> DownloadBackend {
+        switch sourceKind {
+        case .directURL:
+            .urlSession
+        case .magnetLink, .torrentFile:
+            .aria2
+        case .mediaURL:
+            .ytDlp
         }
     }
 
@@ -360,7 +445,8 @@ final class DownloadCenter {
         item.uploadBytesPerSecond = 0
         item.updatedAt = .now
 
-        if item.backend == .urlSession {
+        switch item.backend {
+        case .urlSession:
             item.fileLocationPath = nil
             if item.status == .completed || item.status == .cancelled {
                 item.bytesWritten = 0
@@ -368,7 +454,7 @@ final class DownloadCenter {
                 item.progress = 0
                 item.resumeData = nil
             }
-        } else {
+        case .aria2:
             if let backendIdentifier = item.backendIdentifier {
                 Task {
                     await torrentService.remove(gid: backendIdentifier)
@@ -379,6 +465,15 @@ final class DownloadCenter {
             item.fileLocationPath = nil
             item.bytesWritten = 0
             item.expectedBytes = 0
+            item.progress = 0
+        case .ytDlp:
+            Task {
+                await mediaService.remove(id: id)
+            }
+            item.backendIdentifier = nil
+            item.fileLocationPath = nil
+            item.bytesWritten = 0
+            item.expectedBytes = item.mediaMetadata?.expectedBytes ?? 0
             item.progress = 0
         }
 
@@ -417,6 +512,9 @@ final class DownloadCenter {
             return
         }
 
+        let shouldWaitForMediaProcess = item.backend == .ytDlp
+            && (item.backendIdentifier != nil || mediaStartIDs.contains(id))
+
         if activeBrowserSession?.downloadID == id {
             dismissBrowserSession()
         }
@@ -432,6 +530,10 @@ final class DownloadCenter {
                     await torrentService.remove(gid: backendIdentifier)
                 }
             }
+        case .ytDlp:
+            Task {
+                await mediaService.cancel(id: id)
+            }
         }
 
         item.taskIdentifier = nil
@@ -441,7 +543,9 @@ final class DownloadCenter {
         item.updatedAt = .now
         transitionStatus(for: item, to: .cancelled)
         schedulePersist()
-        startNextQueuedDownloadsIfNeeded()
+        if shouldWaitForMediaProcess == false {
+            startNextQueuedDownloadsIfNeeded()
+        }
     }
 
     func removeSelectedDownload() {
@@ -457,15 +561,27 @@ final class DownloadCenter {
             return
         }
 
+        let shouldWaitForMediaProcess = item.backend == .ytDlp
+            && (item.backendIdentifier != nil || mediaStartIDs.contains(id))
+
         if activeBrowserSession?.downloadID == id {
             dismissBrowserSession()
         }
 
-        if item.backend == .urlSession, item.taskIdentifier != nil {
-            coordinator.cancelDownload(id: id)
-        } else if item.backend == .aria2, let backendIdentifier = item.backendIdentifier {
+        switch item.backend {
+        case .urlSession:
+            if item.taskIdentifier != nil {
+                coordinator.cancelDownload(id: id)
+            }
+        case .aria2:
+            if let backendIdentifier = item.backendIdentifier {
+                Task {
+                    await torrentService.remove(gid: backendIdentifier)
+                }
+            }
+        case .ytDlp:
             Task {
-                await torrentService.remove(gid: backendIdentifier)
+                await mediaService.remove(id: id)
             }
         }
 
@@ -476,7 +592,9 @@ final class DownloadCenter {
         }
 
         schedulePersist()
-        startNextQueuedDownloadsIfNeeded()
+        if shouldWaitForMediaProcess == false {
+            startNextQueuedDownloadsIfNeeded()
+        }
     }
 
     func clearCompleted() {
@@ -583,6 +701,10 @@ final class DownloadCenter {
     }
 
     private func startOrQueueDownload(id: UUID) {
+        guard isShuttingDown == false else {
+            return
+        }
+
         guard let item = item(for: id) else {
             return
         }
@@ -622,6 +744,77 @@ final class DownloadCenter {
             Task { @MainActor [weak self] in
                 await self?.startTorrentDownload(id: id)
             }
+
+        case .ytDlp:
+            setStatus(for: item, to: .preparing)
+            item.startedAt = item.startedAt ?? .now
+            mediaStartIDs.insert(id)
+            schedulePersist()
+            Task { @MainActor [weak self] in
+                await self?.startMediaDownload(id: id)
+            }
+        }
+    }
+
+    private func startMediaDownload(id: UUID) async {
+        var waitsForMediaStopEvent = false
+
+        defer {
+            mediaStartIDs.remove(id)
+
+            if waitsForMediaStopEvent == false {
+                if let item = item(for: id),
+                   item.status == .paused || item.status == .cancelled {
+                    startNextQueuedDownloadsIfNeeded()
+                } else if item(for: id) == nil {
+                    startNextQueuedDownloadsIfNeeded()
+                }
+            }
+        }
+
+        guard let currentItem = item(for: id),
+              currentItem.status == .preparing else {
+            return
+        }
+
+        do {
+            let processIdentifier = try await mediaService.startDownload(
+                id: currentItem.id,
+                sourceURL: currentItem.sourceURL,
+                destinationFolder: currentItem.destinationFolderURL,
+                metadata: currentItem.mediaMetadata,
+                formatPreference: currentItem.mediaFormatPreference
+                    ?? currentItem.mediaMetadata?.defaultFormatPreference
+                    ?? .bestMP4
+            )
+
+            guard let refreshedItem = item(for: id) else {
+                waitsForMediaStopEvent = await mediaService.pause(id: id)
+                return
+            }
+
+            guard refreshedItem.status == .preparing || refreshedItem.status == .downloading else {
+                waitsForMediaStopEvent = await mediaService.pause(id: id)
+                return
+            }
+
+            refreshedItem.backendIdentifier = String(processIdentifier)
+            refreshedItem.updatedAt = .now
+            schedulePersist()
+        } catch {
+            guard let refreshedItem = item(for: id) else {
+                return
+            }
+
+            refreshedItem.backendIdentifier = nil
+            refreshedItem.speedBytesPerSecond = 0
+            refreshedItem.uploadBytesPerSecond = 0
+            refreshedItem.updatedAt = .now
+            refreshedItem.lastError = error.localizedDescription
+            transitionStatus(for: refreshedItem, to: .failed)
+            presentMediaErrorIfNeeded(error)
+            schedulePersist()
+            startNextQueuedDownloadsIfNeeded()
         }
     }
 
@@ -759,6 +952,9 @@ final class DownloadCenter {
             return
         }
 
+        let shouldWaitForMediaProcess = item.backend == .ytDlp
+            && (item.backendIdentifier != nil || mediaStartIDs.contains(id))
+
         setStatus(for: item, to: .paused)
         item.taskIdentifier = nil
         item.speedBytesPerSecond = 0
@@ -774,10 +970,16 @@ final class DownloadCenter {
                     try? await torrentService.pause(gid: backendIdentifier)
                 }
             }
+        case .ytDlp:
+            Task {
+                await mediaService.pause(id: id)
+            }
         }
 
         schedulePersist()
-        startNextQueuedDownloadsIfNeeded()
+        if shouldWaitForMediaProcess == false {
+            startNextQueuedDownloadsIfNeeded()
+        }
     }
 
     private var currentRunningDownloadsCount: Int {
@@ -785,6 +987,10 @@ final class DownloadCenter {
     }
 
     private func startNextQueuedDownloadsIfNeeded() {
+        guard isShuttingDown == false else {
+            return
+        }
+
         let availableSlots = max(settings.transferSettings.maxConcurrentDownloads - currentRunningDownloadsCount, 0)
         guard availableSlots > 0 else {
             return
@@ -1128,6 +1334,127 @@ final class DownloadCenter {
         schedulePersist()
     }
 
+    private func handle(_ event: MediaDownloadEvent) {
+        if let id = mediaDownloadID(from: event),
+           item(for: id) == nil {
+            if mediaEventReleasesQueueSlot(event) {
+                startNextQueuedDownloadsIfNeeded()
+            }
+            return
+        }
+
+        switch event {
+        case let .started(id, processIdentifier, expectedBytes, title, _):
+            guard let item = item(for: id) else {
+                return
+            }
+
+            item.backendIdentifier = String(processIdentifier)
+            item.metadataName = title ?? item.metadataName
+            if expectedBytes > 0 {
+                item.expectedBytes = max(item.expectedBytes, expectedBytes)
+            }
+            setStatus(for: item, to: .downloading)
+            item.lastError = nil
+            item.speedBytesPerSecond = 0
+            item.uploadBytesPerSecond = 0
+            item.updatedAt = .now
+
+        case let .progress(id, bytesWritten, expectedBytes, speedBytesPerSecond):
+            guard let item = item(for: id) else {
+                return
+            }
+
+            item.bytesWritten = max(item.bytesWritten, bytesWritten)
+            item.expectedBytes = max(item.expectedBytes, expectedBytes)
+            if item.expectedBytes > 0 {
+                item.progress = Double(item.bytesWritten) / Double(item.expectedBytes)
+            }
+            item.speedBytesPerSecond = speedBytesPerSecond
+            item.uploadBytesPerSecond = 0
+            item.updatedAt = .now
+
+        case let .paused(id):
+            guard let item = item(for: id) else {
+                return
+            }
+
+            item.backendIdentifier = nil
+            setStatus(for: item, to: .paused)
+            item.speedBytesPerSecond = 0
+            item.uploadBytesPerSecond = 0
+            item.updatedAt = .now
+            startNextQueuedDownloadsIfNeeded()
+
+        case let .cancelled(id):
+            guard let item = item(for: id) else {
+                return
+            }
+
+            item.backendIdentifier = nil
+            item.speedBytesPerSecond = 0
+            item.uploadBytesPerSecond = 0
+            item.updatedAt = .now
+            transitionStatus(for: item, to: .cancelled)
+            startNextQueuedDownloadsIfNeeded()
+
+        case let .finished(id, fileURL, expectedBytes):
+            guard let item = item(for: id) else {
+                return
+            }
+
+            item.fileLocationPath = fileURL.path
+            item.preferredFilename = fileURL.lastPathComponent
+            item.progress = 1
+            item.expectedBytes = max(item.expectedBytes, expectedBytes, item.bytesWritten)
+            item.bytesWritten = max(item.bytesWritten, item.expectedBytes)
+            item.finishedAt = .now
+            item.lastError = nil
+            item.backendIdentifier = nil
+            item.speedBytesPerSecond = 0
+            item.uploadBytesPerSecond = 0
+            item.updatedAt = .now
+            transitionStatus(for: item, to: .completed)
+            startNextQueuedDownloadsIfNeeded()
+
+        case let .failed(id, message):
+            guard let item = item(for: id) else {
+                return
+            }
+
+            item.backendIdentifier = nil
+            item.lastError = message
+            item.speedBytesPerSecond = 0
+            item.uploadBytesPerSecond = 0
+            item.updatedAt = .now
+            transitionStatus(for: item, to: .failed)
+            startNextQueuedDownloadsIfNeeded()
+        }
+
+        schedulePersist()
+    }
+
+    private func mediaDownloadID(from event: MediaDownloadEvent) -> UUID? {
+        switch event {
+        case let .started(id, _, _, _, _),
+             let .progress(id, _, _, _),
+             let .paused(id),
+             let .cancelled(id),
+             let .finished(id, _, _),
+             let .failed(id, _):
+            id
+        }
+    }
+
+    private func mediaEventReleasesQueueSlot(_ event: MediaDownloadEvent) -> Bool {
+        switch event {
+        case .paused, .cancelled, .finished, .failed:
+            true
+        case .started, .progress:
+            false
+        }
+    }
+
     private func item(for id: UUID) -> DownloadItem? {
         downloads.first { $0.id == id }
     }
@@ -1304,7 +1631,13 @@ final class DownloadCenter {
             )
         case .torrentFile:
             makeExternalTorrentDraft(for: url)
-        case .directURL, nil:
+        case .directURL:
+            AddDownloadSheetDraft.linkOrMagnet(
+                url,
+                destinationFolderURL: settings.defaultDestinationURL,
+                shouldStartImmediately: settings.startDownloadsAutomatically
+            )
+        case .mediaURL, nil:
             nil
         }
     }
@@ -1441,7 +1774,11 @@ final class DownloadCenter {
             .filter { $0.backend == .aria2 }
             .compactMap(\.backendIdentifier)
 
-        guard backendIdentifiers.isEmpty == false else {
+        let mediaIDs = items
+            .filter { $0.backend == .ytDlp }
+            .map(\.id)
+
+        guard backendIdentifiers.isEmpty == false || mediaIDs.isEmpty == false else {
             return
         }
 
@@ -1449,7 +1786,27 @@ final class DownloadCenter {
             for backendIdentifier in backendIdentifiers {
                 await torrentService.remove(gid: backendIdentifier)
             }
+
+            for id in mediaIDs {
+                await mediaService.remove(id: id)
+            }
         }
+    }
+
+    private func presentMediaErrorIfNeeded(_ error: Error) {
+        if hasShownMediaRuntimeAlert,
+           case MediaDownloadError.runtimeNotFound = error {
+            return
+        }
+
+        if case MediaDownloadError.runtimeNotFound = error {
+            hasShownMediaRuntimeAlert = true
+        }
+
+        activeAlert = UserAlert(
+            title: mediaErrorTitle(for: error),
+            message: DownloadItem.displayErrorMessage(from: error.localizedDescription)
+        )
     }
 
     private func presentTorrentErrorIfNeeded(_ error: Error) {
@@ -1497,6 +1854,22 @@ final class DownloadCenter {
                     || normalizedMessage.contains("no such")
                     || normalizedMessage.contains("not exist")
             )
+    }
+
+    private func mediaErrorTitle(for error: Error) -> String {
+        if case MediaDownloadError.runtimeNotFound = error {
+            return String(
+                localized: "alert.media.missingRuntime.title",
+                defaultValue: "Media Support Needs yt-dlp",
+                comment: "Alert title shown when the bundled yt-dlp media runtime cannot be found."
+            )
+        }
+
+        return String(
+            localized: "alert.media.engineError.title",
+            defaultValue: "Media Engine Error",
+            comment: "Alert title shown when the media backend reports an error."
+        )
     }
 
     private func torrentErrorTitle(for error: Error) -> String {

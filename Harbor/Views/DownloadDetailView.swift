@@ -229,6 +229,8 @@ private struct DownloadHeader: View {
             )
         case .torrentFile:
             nil
+        case .mediaURL:
+            item.mediaMetadata?.platform ?? item.sourceURL.host
         }
     }
 
@@ -240,6 +242,8 @@ private struct DownloadHeader: View {
             nil
         case .torrentFile:
             item.sourceURL.lastPathComponent
+        case .mediaURL:
+            item.sourceURL.absoluteString
         }
     }
 }

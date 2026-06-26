@@ -115,6 +115,8 @@ struct DownloadRecord: Codable, Sendable {
     let resumeData: Data?
     let backendIdentifier: String?
     let metadataName: String?
+    let mediaMetadata: MediaDownloadMetadata?
+    let mediaFormatPreference: MediaDownloadFormatPreference?
     let activityEvents: [DownloadActivityEvent]
 
     private enum CodingKeys: String, CodingKey {
@@ -137,6 +139,8 @@ struct DownloadRecord: Codable, Sendable {
         case resumeData
         case backendIdentifier
         case metadataName
+        case mediaMetadata
+        case mediaFormatPreference
         case activityEvents
     }
 
@@ -160,6 +164,8 @@ struct DownloadRecord: Codable, Sendable {
         resumeData: Data?,
         backendIdentifier: String?,
         metadataName: String?,
+        mediaMetadata: MediaDownloadMetadata? = nil,
+        mediaFormatPreference: MediaDownloadFormatPreference? = nil,
         activityEvents: [DownloadActivityEvent] = []
     ) {
         self.id = id
@@ -181,6 +187,8 @@ struct DownloadRecord: Codable, Sendable {
         self.resumeData = resumeData
         self.backendIdentifier = backendIdentifier
         self.metadataName = metadataName
+        self.mediaMetadata = mediaMetadata
+        self.mediaFormatPreference = mediaFormatPreference
         self.activityEvents = activityEvents
     }
 
@@ -205,6 +213,8 @@ struct DownloadRecord: Codable, Sendable {
         self.resumeData = try container.decodeIfPresent(Data.self, forKey: .resumeData)
         self.backendIdentifier = try container.decodeIfPresent(String.self, forKey: .backendIdentifier)
         self.metadataName = try container.decodeIfPresent(String.self, forKey: .metadataName)
+        self.mediaMetadata = try container.decodeIfPresent(MediaDownloadMetadata.self, forKey: .mediaMetadata)
+        self.mediaFormatPreference = try container.decodeIfPresent(MediaDownloadFormatPreference.self, forKey: .mediaFormatPreference)
         self.activityEvents = try container.decodeIfPresent([DownloadActivityEvent].self, forKey: .activityEvents) ?? []
     }
 
@@ -229,6 +239,8 @@ struct DownloadRecord: Codable, Sendable {
         try container.encode(resumeData, forKey: .resumeData)
         try container.encode(backendIdentifier, forKey: .backendIdentifier)
         try container.encode(metadataName, forKey: .metadataName)
+        try container.encode(mediaMetadata, forKey: .mediaMetadata)
+        try container.encode(mediaFormatPreference, forKey: .mediaFormatPreference)
         try container.encode(activityEvents, forKey: .activityEvents)
     }
 }
@@ -258,6 +270,8 @@ final class DownloadItem: Identifiable {
     var taskIdentifier: Int?
     var backendIdentifier: String?
     var metadataName: String?
+    var mediaMetadata: MediaDownloadMetadata?
+    var mediaFormatPreference: MediaDownloadFormatPreference?
     var activityEvents: [DownloadActivityEvent]
 
     init(
@@ -283,6 +297,8 @@ final class DownloadItem: Identifiable {
         taskIdentifier: Int? = nil,
         backendIdentifier: String? = nil,
         metadataName: String? = nil,
+        mediaMetadata: MediaDownloadMetadata? = nil,
+        mediaFormatPreference: MediaDownloadFormatPreference? = nil,
         activityEvents: [DownloadActivityEvent] = []
     ) {
         self.id = id
@@ -307,6 +323,8 @@ final class DownloadItem: Identifiable {
         self.taskIdentifier = taskIdentifier
         self.backendIdentifier = backendIdentifier
         self.metadataName = metadataName
+        self.mediaMetadata = mediaMetadata
+        self.mediaFormatPreference = mediaFormatPreference
         self.activityEvents = activityEvents
 
         if self.activityEvents.contains(where: { $0.kind == .added }) == false {
@@ -341,6 +359,8 @@ final class DownloadItem: Identifiable {
             taskIdentifier: nil,
             backendIdentifier: record.backendIdentifier,
             metadataName: record.metadataName,
+            mediaMetadata: record.mediaMetadata,
+            mediaFormatPreference: record.mediaFormatPreference,
             activityEvents: record.activityEvents
         )
     }
@@ -352,6 +372,12 @@ final class DownloadItem: Identifiable {
 
         if let metadataName, metadataName.isEmpty == false {
             return metadataName
+        }
+
+        if sourceKind == .mediaURL,
+           let title = mediaMetadata?.title,
+           title.isEmpty == false {
+            return title
         }
 
         if let preferredFilename, preferredFilename.isEmpty == false {
@@ -406,6 +432,8 @@ final class DownloadItem: Identifiable {
                 defaultValue: "Torrent File",
                 comment: "Source host fallback for local torrent file downloads."
             )
+        case .mediaURL:
+            mediaMetadata?.platform ?? sourceURL.host ?? sourceURL.absoluteString
         }
     }
 
@@ -498,6 +526,8 @@ final class DownloadItem: Identifiable {
             resumeData: resumeData,
             backendIdentifier: backendIdentifier,
             metadataName: metadataName,
+            mediaMetadata: mediaMetadata,
+            mediaFormatPreference: mediaFormatPreference,
             activityEvents: activityEvents
         )
     }

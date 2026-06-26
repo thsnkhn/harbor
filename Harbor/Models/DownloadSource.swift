@@ -4,6 +4,7 @@ enum DownloadSourceKind: String, Codable, CaseIterable, Identifiable, Sendable {
     case directURL
     case magnetLink
     case torrentFile
+    case mediaURL
 
     var id: String { rawValue }
 
@@ -15,6 +16,8 @@ enum DownloadSourceKind: String, Codable, CaseIterable, Identifiable, Sendable {
             LocalizedStringResource("source.kind.magnetLink", defaultValue: "Magnet Link")
         case .torrentFile:
             LocalizedStringResource("source.kind.torrentFile", defaultValue: "Torrent File")
+        case .mediaURL:
+            LocalizedStringResource("source.kind.mediaURL", defaultValue: "Media URL")
         }
     }
 
@@ -26,6 +29,8 @@ enum DownloadSourceKind: String, Codable, CaseIterable, Identifiable, Sendable {
             "bolt.horizontal.circle"
         case .torrentFile:
             "doc.fill"
+        case .mediaURL:
+            "play.rectangle.fill"
         }
     }
 
@@ -56,6 +61,7 @@ enum DownloadSourceKind: String, Codable, CaseIterable, Identifiable, Sendable {
 enum DownloadBackend: String, Codable, Sendable {
     case urlSession
     case aria2
+    case ytDlp
 }
 
 struct MagnetLinkMetadata: Sendable {

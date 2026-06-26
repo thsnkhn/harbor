@@ -108,7 +108,9 @@ actor Aria2TorrentService {
 
     deinit {
         stderrPipe?.fileHandleForReading.readabilityHandler = nil
-        process?.terminate()
+        if let process, process.isRunning {
+            terminateDaemonProcess(process)
+        }
     }
 
     func resolvedBinaryPath() -> String? {
@@ -136,6 +138,10 @@ actor Aria2TorrentService {
         } catch {
             logger.warning("Failed to update aria2 transfer settings: \(error.localizedDescription, privacy: .public)")
         }
+    }
+
+    func shutdown() {
+        resetDaemon(terminateIfRunning: true)
     }
 
     func addDownload(
@@ -179,7 +185,7 @@ actor Aria2TorrentService {
             )
             logger.info("aria2 accepted torrent file with gid \(gid, privacy: .public)")
             return gid
-        case .directURL:
+        case .directURL, .mediaURL:
             throw TorrentEngineError.invalidSource
         }
     }
@@ -499,14 +505,30 @@ actor Aria2TorrentService {
     private func resetDaemon(terminateIfRunning: Bool) {
         stderrPipe?.fileHandleForReading.readabilityHandler = nil
 
-        if terminateIfRunning, process?.isRunning == true {
-            process?.terminate()
+        if terminateIfRunning,
+           let process,
+           process.isRunning {
+            terminateDaemonProcess(process)
         }
 
         process = nil
         rpcPort = nil
         rpcSecret = nil
         stderrPipe = nil
+    }
+
+    private nonisolated func terminateDaemonProcess(_ process: Process) {
+        process.terminate()
+
+        let deadline = Date().addingTimeInterval(1)
+        while process.isRunning, Date() < deadline {
+            Thread.sleep(forTimeInterval: 0.05)
+        }
+
+        if process.isRunning {
+            logger.warning("Force killing aria2 daemon with pid \(process.processIdentifier, privacy: .public)")
+            _ = kill(process.processIdentifier, SIGKILL)
+        }
     }
 
     private func terminateOrphanedDaemons(matching binaryURL: URL) {

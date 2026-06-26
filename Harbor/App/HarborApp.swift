@@ -21,6 +21,8 @@ struct HarborApp: App {
             RootView(center: center, settings: settings)
                 .frame(minWidth: 1_040, minHeight: 680)
                 .task {
+                    appDelegate.center = center
+
                     guard PreviewRuntime.isActive == false else {
                         return
                     }
