@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Harbor - Download torrents and public media links on macOS</title>
+  <meta name="description" content="Harbor is a free, open-source macOS downloader for torrents, magnet links, and public media URLs.">
+  <meta property="og:title" content="Harbor">
+  <meta property="og:description" content="Download torrents and public media links on macOS.">
+  <meta property="og:image" content="https://thsnkhn.github.io/harbor/assets/harbor-screenshot-rounded.png">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://thsnkhn.github.io/harbor/">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="assets/icon-rounded.png">
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #182123;
+      --muted: #5d676b;
+      --quiet: #7b8589;
+      --paper: #fbfaf7;
+      --line: #dedbd2;
+      --harbor: #087d8f;
+      --harbor-dark: #056171;
+      --wake: #d8f1f4;
+      --ember: #ff9f1c;
+      --shadow: 0 24px 70px rgb(24 33 35 / 14%);
+      font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      min-height: 100%;
+      background: var(--paper);
+    }
+
+    body {
+      min-height: 100vh;
+      margin: 0;
+      color: var(--ink);
+      background:
+        linear-gradient(90deg, rgb(8 125 143 / 5%) 1px, transparent 1px),
+        linear-gradient(180deg, rgb(8 125 143 / 5%) 1px, transparent 1px),
+        var(--paper);
+      background-size: 44px 44px;
+      text-rendering: geometricPrecision;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    .page {
+      width: min(1120px, calc(100% - 40px));
+      margin: 0 auto;
+      padding: 30px 0 44px;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 42px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .nav {
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .nav a {
+      border-bottom: 1px solid transparent;
+    }
+
+    .nav a:hover {
+      border-color: currentColor;
+    }
+
+    .hero {
+      display: grid;
+      place-items: center;
+      min-height: calc(100vh - 116px);
+      padding: 54px 0 0;
+      text-align: center;
+    }
+
+    .hero-inner {
+      width: 100%;
+    }
+
+    .app-icon {
+      width: 116px;
+      height: 116px;
+      border-radius: 26px;
+      box-shadow: 0 18px 48px rgb(24 33 35 / 18%);
+    }
+
+    h1 {
+      margin: 22px 0 0;
+      font-size: clamp(56px, 8vw, 92px);
+      line-height: .98;
+      font-weight: 560;
+      letter-spacing: 0;
+    }
+
+    .tagline {
+      max-width: 780px;
+      margin: 22px auto 0;
+      color: var(--muted);
+      font-size: clamp(22px, 3vw, 34px);
+      line-height: 1.18;
+      font-weight: 430;
+    }
+
+    .subline {
+      max-width: 680px;
+      margin: 16px auto 0;
+      color: var(--quiet);
+      font-size: 17px;
+      line-height: 1.55;
+    }
+
+    .actions {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin: 30px 0 0;
+    }
+
+    .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 44px;
+      border-radius: 999px;
+      padding: 0 21px;
+      font-size: 15px;
+      font-weight: 560;
+      border: 1px solid transparent;
+      transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease;
+    }
+
+    .button:focus-visible,
+    .nav a:focus-visible,
+    .small-link:focus-visible {
+      outline: 3px solid var(--wake);
+      outline-offset: 3px;
+    }
+
+    .button.primary {
+      background: var(--harbor);
+      color: white;
+      box-shadow: 0 1px 2px rgb(8 125 143 / 18%);
+    }
+
+    .button.primary:hover {
+      background: var(--harbor-dark);
+      transform: translateY(-1px);
+    }
+
+    .button.secondary {
+      background: rgb(255 255 255 / 82%);
+      color: var(--ink);
+      border-color: var(--line);
+    }
+
+    .button.secondary:hover {
+      background: white;
+      transform: translateY(-1px);
+    }
+
+    .meta {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-top: 18px;
+      color: var(--quiet);
+      font-size: 14px;
+    }
+
+    .dot {
+      width: 4px;
+      height: 4px;
+      border-radius: 50%;
+      background: var(--ember);
+    }
+
+    .screenshot-wrap {
+      width: min(980px, 100%);
+      margin: 42px auto 0;
+      border: 1px solid rgb(24 33 35 / 10%);
+      border-radius: 18px;
+      background: rgb(255 255 255 / 58%);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .screenshot-wrap img {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+
+    .footer {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      flex-wrap: wrap;
+      margin-top: 30px;
+      color: var(--quiet);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .small-link {
+      color: var(--harbor-dark);
+      font-weight: 560;
+      border-bottom: 1px solid rgb(5 97 113 / 30%);
+    }
+
+    @media (max-width: 700px) {
+      .page {
+        width: min(100% - 28px, 1120px);
+        padding-top: 18px;
+      }
+
+      .nav {
+        gap: 12px;
+        font-size: 13px;
+      }
+
+      .hero {
+        min-height: auto;
+        padding-top: 44px;
+      }
+
+      .app-icon {
+        width: 92px;
+        height: 92px;
+        border-radius: 22px;
+      }
+
+      .tagline {
+        font-size: clamp(25px, 8vw, 34px);
+      }
+
+      .subline {
+        font-size: 16px;
+      }
+
+      .actions {
+        align-items: stretch;
+        flex-direction: column;
+      }
+
+      .button {
+        width: 100%;
+      }
+
+      .screenshot-wrap {
+        margin-top: 34px;
+        border-radius: 14px;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *,
+      *::before,
+      *::after {
+        transition: none !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <nav class="topbar" aria-label="Primary">
+      <div class="nav">
+        <a href="https://github.com/thsnkhn/harbor">GitHub</a>
+        <a href="updates/Harbor-1.4.0.md">Changelog</a>
+        <a href="appcast.xml">Appcast</a>
+      </div>
+    </nav>
+
+    <section class="hero" aria-labelledby="hero-title">
+      <div class="hero-inner">
+        <img class="app-icon" src="assets/icon-rounded.png" alt="Harbor app icon" width="116" height="116">
+        <h1 id="hero-title">Harbor</h1>
+        <p class="tagline">Download torrents and public media links on macOS.</p>
+        <p class="subline">A free, open-source Mac downloader for torrents, magnet links, YouTube, Instagram, TikTok, Pinterest, and other public URLs supported by yt-dlp.</p>
+
+        <div class="actions" aria-label="Download actions">
+          <a class="button primary" href="https://github.com/thsnkhn/harbor/releases/latest/download/Harbor.dmg">Download for Mac</a>
+          <a class="button secondary" href="https://github.com/thsnkhn/harbor/releases/latest">View latest release</a>
+        </div>
+
+        <div class="meta" aria-label="Compatibility and policy">
+          <span>macOS 15.6+</span>
+          <span class="dot" aria-hidden="true"></span>
+          <span>Intel and Apple silicon</span>
+          <span class="dot" aria-hidden="true"></span>
+          <span>Public content only</span>
+        </div>
+
+        <div class="screenshot-wrap" aria-label="Harbor app screenshot">
+          <img src="assets/harbor-screenshot-rounded.png" alt="Harbor showing the downloads sidebar and download detail view" width="1920" height="1080">
+        </div>
+
+        <footer class="footer">
+          <span>Harbor does not bypass private accounts, DRM, authentication, or platform security controls.</span>
+          <a class="small-link" href="https://github.com/thsnkhn/harbor/blob/main/LICENSE">GPLv3 License</a>
+        </footer>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
