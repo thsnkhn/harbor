@@ -3,6 +3,15 @@
     <channel>
         <title>Harbor</title>
         <item>
+            <title>1.4.2</title>
+            <pubDate>Sat, 27 Jun 2026 02:11:11 +0500</pubDate>
+            <sparkle:version>23</sparkle:version>
+            <sparkle:shortVersionString>1.4.2</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.6</sparkle:minimumSystemVersion>
+            <sparkle:releaseNotesLink>https://thsnkhn.github.io/harbor/updates/Harbor-1.4.2.md</sparkle:releaseNotesLink>
+            <enclosure url="https://github.com/thsnkhn/harbor/releases/download/v1.4.2/Harbor-1.4.2.dmg" length="183071564" type="application/octet-stream" sparkle:edSignature="1F5p03mtTZxpRgJfffG7kLEU6OreYovfYjynkKO6W6bpwa/PyjJQ8MwotsM+C83j3Nd0GsqjrCKiA5+wUICIDg=="/>
+        </item>
+        <item>
             <title>1.4.1</title>
             <pubDate>Fri, 26 Jun 2026 23:01:53 +0500</pubDate>
             <sparkle:version>22</sparkle:version>
@@ -19,15 +28,6 @@
             <sparkle:minimumSystemVersion>15.6</sparkle:minimumSystemVersion>
             <sparkle:releaseNotesLink>https://thsnkhn.github.io/harbor/updates/Harbor-1.4.0.md</sparkle:releaseNotesLink>
             <enclosure url="https://github.com/thsnkhn/harbor/releases/download/v1.4.0/Harbor-1.4.0.dmg" length="183071500" type="application/octet-stream" sparkle:edSignature="mWunHbsZMIM2BrT9Df0o4KjVAfB/wPr2WbL8qYIC/AuUqRdViZStsUGL/tTTFCQ22AvMk897DMDVqqc3lbYiBA=="/>
-        </item>
-        <item>
-            <title>1.3.1</title>
-            <pubDate>Thu, 18 Jun 2026 15:36:32 +0500</pubDate>
-            <sparkle:version>20</sparkle:version>
-            <sparkle:shortVersionString>1.3.1</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>15.6</sparkle:minimumSystemVersion>
-            <sparkle:releaseNotesLink>https://thsnkhn.github.io/harbor/updates/Harbor-1.3.1.md</sparkle:releaseNotesLink>
-            <enclosure url="https://thsnkhn.github.io/harbor/updates/Harbor-1.3.1.dmg" length="9152948" type="application/octet-stream" sparkle:edSignature="ax+Su1m294JkMxKyIp3C6awqGCSwrgwMnUuB3a+9fL/HyD/13XjaLRi+vb1iT1LHtr2p7Pu0kbmwduIz3xfqAQ=="/>
         </item>
     </channel>
 </rss>
