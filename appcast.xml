@@ -3,6 +3,15 @@
     <channel>
         <title>Harbor</title>
         <item>
+            <title>1.4.1</title>
+            <pubDate>Fri, 26 Jun 2026 23:01:53 +0500</pubDate>
+            <sparkle:version>22</sparkle:version>
+            <sparkle:shortVersionString>1.4.1</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.6</sparkle:minimumSystemVersion>
+            <sparkle:releaseNotesLink>https://thsnkhn.github.io/harbor/updates/Harbor-1.4.1.md</sparkle:releaseNotesLink>
+            <enclosure url="https://github.com/thsnkhn/harbor/releases/download/v1.4.1/Harbor-1.4.1.dmg" length="183071152" type="application/octet-stream" sparkle:edSignature="2wF0/RozQNy4O95i2YEpYcTSQexnuNfT+mgyZQBUm1LlCt3ZQjM532D3CyxL7j4E/D1QQ+j8OjfVjm2tBFRkAQ=="/>
+        </item>
+        <item>
             <title>1.4.0</title>
             <pubDate>Fri, 26 Jun 2026 21:21:22 +0500</pubDate>
             <sparkle:version>21</sparkle:version>
@@ -19,15 +28,6 @@
             <sparkle:minimumSystemVersion>15.6</sparkle:minimumSystemVersion>
             <sparkle:releaseNotesLink>https://thsnkhn.github.io/harbor/updates/Harbor-1.3.1.md</sparkle:releaseNotesLink>
             <enclosure url="https://thsnkhn.github.io/harbor/updates/Harbor-1.3.1.dmg" length="9152948" type="application/octet-stream" sparkle:edSignature="ax+Su1m294JkMxKyIp3C6awqGCSwrgwMnUuB3a+9fL/HyD/13XjaLRi+vb1iT1LHtr2p7Pu0kbmwduIz3xfqAQ=="/>
-        </item>
-        <item>
-            <title>1.3.0</title>
-            <pubDate>Thu, 18 Jun 2026 15:20:02 +0500</pubDate>
-            <sparkle:version>19</sparkle:version>
-            <sparkle:shortVersionString>1.3.0</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>15.6</sparkle:minimumSystemVersion>
-            <sparkle:releaseNotesLink>https://thsnkhn.github.io/harbor/updates/Harbor-1.3.0.md</sparkle:releaseNotesLink>
-            <enclosure url="https://thsnkhn.github.io/harbor/updates/Harbor-1.3.0.dmg" length="9153334" type="application/octet-stream" sparkle:edSignature="SMuLWSXHsNOTvN+nHyyBJWQk6/p0rEQtSrQ/oLmkZjXGfmPFkm8yrzs6BE7Fd9v60XEcIillzeapsn/JuVPdAw=="/>
         </item>
     </channel>
 </rss>
