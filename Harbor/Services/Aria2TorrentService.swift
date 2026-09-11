@@ -101,6 +101,7 @@ struct TorrentTransferOptions: Equatable, Sendable {
     let seedRatioLimit: Double?
     let verifyExistingData: Bool
     let selectedFileIndexes: [Int]?
+    let existingDataPath: String?
 
     init(
         downloadLimitBytesPerSecond: Int64?,
@@ -108,7 +109,8 @@ struct TorrentTransferOptions: Equatable, Sendable {
         shouldSeed: Bool,
         seedRatioLimit: Double? = nil,
         verifyExistingData: Bool = false,
-        selectedFileIndexes: [Int]? = nil
+        selectedFileIndexes: [Int]? = nil,
+        existingDataPath: String? = nil
     ) {
         self.downloadLimitBytesPerSecond = downloadLimitBytesPerSecond
         self.uploadLimitBytesPerSecond = uploadLimitBytesPerSecond
@@ -116,6 +118,7 @@ struct TorrentTransferOptions: Equatable, Sendable {
         self.seedRatioLimit = seedRatioLimit
         self.verifyExistingData = verifyExistingData
         self.selectedFileIndexes = selectedFileIndexes
+        self.existingDataPath = existingDataPath
     }
 }
 
@@ -488,8 +491,17 @@ actor Aria2TorrentService {
             transferOptions: transferOptions
         )
         options["gid"] = gid
+        if let existingDataPath = transferOptions?.existingDataPath, let torrentData {
+            let mapping = try TorrentCheckPathMapping.resolve(metainfo: torrentData, existingDataPath: existingDataPath)
+            options["dir"] = mapping.directoryURL.path
+            options["index-out"] = mapping.indexOut
+            options["check-integrity"] = "true"
+            options["allow-overwrite"] = "false"
+            options["auto-file-renaming"] = "false"
+        }
 
         let returnedGID: String
+        try Task.checkCancellation()
         switch sourceKind {
         case .magnetLink:
             returnedGID = try await submitDownload(

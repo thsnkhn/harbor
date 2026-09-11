@@ -28,6 +28,7 @@ struct DownloadSelectionActions: View {
             action("Quick Look", icon: "eye") { center.quickLookDownloads(ids: ids) }
         }
         if ids.count == 1, let item = singleItem, item.backend == .aria2 {
+            action("Check Files…", icon: "checkmark.shield") { center.checkTorrentFiles(id: item.id) }
             if item.status == .completed {
                 action("Start Seeding", icon: "arrow.up.circle") { center.startSeeding(id: item.id) }
             }

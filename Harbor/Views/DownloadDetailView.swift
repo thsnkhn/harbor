@@ -42,6 +42,12 @@ private struct DownloadInspectorContent: View {
                 }
 
                 DownloadTransferSection(item: item, center: center)
+                if item.backend == .aria2 {
+                    Button("Check Files…", systemImage: "checkmark.shield") {
+                        center.checkTorrentFiles(id: item.id)
+                    }
+                    .accessibilityIdentifier("download.checkTorrentFiles")
+                }
                 DownloadStorageSection(item: item)
                 DownloadActivitySection(item: item)
 

@@ -49,18 +49,11 @@ struct MediaRuntimeResolver {
     }
 
     private nonisolated static func resolveBundledRuntime(using context: Context) -> MediaRuntimeResolution? {
-        for root in context.bundledResourceRoots {
-            let binDirectory = root
-                .appendingPathComponent("MediaRuntime", isDirectory: true)
+        resolveRuntime(in: context.bundledResourceRoots.map { root in
+            root.appendingPathComponent("MediaRuntime", isDirectory: true)
                 .appendingPathComponent(HarborApplicationSupport.architectureName, isDirectory: true)
                 .appendingPathComponent("bin", isDirectory: true)
-
-            if let resolution = resolution(in: binDirectory, fileManager: context.fileManager) {
-                return resolution
-            }
-        }
-
-        return nil
+        }, fileManager: context.fileManager)
     }
 
     private nonisolated static func resolveEnvironmentOverride(using context: Context) -> MediaRuntimeResolution? {
@@ -92,13 +85,20 @@ struct MediaRuntimeResolver {
     }
 
     private nonisolated static func resolveStandardRuntime(using context: Context) -> MediaRuntimeResolution? {
-        for path in context.candidateDirectories {
-            let directoryURL = URL(fileURLWithPath: path, isDirectory: true)
-            if let resolution = resolution(in: directoryURL, fileManager: context.fileManager) {
+        resolveRuntime(in: context.candidateDirectories.map {
+            URL(fileURLWithPath: $0, isDirectory: true)
+        }, fileManager: context.fileManager)
+    }
+
+    private nonisolated static func resolveRuntime(
+        in directories: [URL],
+        fileManager: FileManager
+    ) -> MediaRuntimeResolution? {
+        for directory in directories {
+            if let resolution = resolution(in: directory, fileManager: fileManager) {
                 return resolution
             }
         }
-
         return nil
     }
 

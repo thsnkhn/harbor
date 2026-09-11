@@ -97,6 +97,96 @@ final class HarborMediaTorrentUITests: HarborUITestCase {
         XCTAssertFalse(browser.sheet.waitForExistence(timeout: 2))
     }
 
+    func testCheckFilesVerifiesExistingTorrentWithoutChangingPayload() throws {
+        launchHarbor()
+        let download = addLink(fixtureURL("/torrents/webseed.torrent"))
+        waitForStatus("Completed", download: download, timeout: 60)
+
+        let file = torrentDownloadsURL.appendingPathComponent("harbor-webseed.bin")
+        let originalHash = try sha256(of: file)
+        XCTAssertEqual(originalHash, "c057102af0d868b2e267e418e9ccbdb821f265a8860d949d9ae2179963bd2cea")
+        let originalModificationDate = try file.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate
+        let originalPayloadRequests = try fixtureRequests(for: "/direct/small.bin").count
+
+        func assertPayloadUnchanged() throws {
+            XCTAssertEqual(try sha256(of: file), originalHash)
+            XCTAssertEqual(
+                try file.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate,
+                originalModificationDate,
+                "Checking must not modify the existing payload."
+            )
+            XCTAssertEqual(
+                try fixtureRequests(for: "/direct/small.bin").count,
+                originalPayloadRequests,
+                "Checking must not download payload pieces."
+            )
+        }
+
+        downloadTablePage.name("harbor-webseed.bin").rightClick()
+        let checkFiles = app.menuItems["Check Files…"].firstMatch
+        XCTAssertTrue(checkFiles.waitForExistence(timeout: 5))
+        checkFiles.click()
+
+        let sheet = app.descendants(matching: .any)["torrent.checkSheet"].firstMatch
+        XCTAssertTrue(sheet.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts.matching(
+            NSPredicate(format: "label == %@ OR value == %@", file.path, file.path)
+        ).firstMatch.exists, "The known payload location must be selected without a file dialog.")
+
+        let check = app.buttons["torrent.beginCheck"].firstMatch
+        XCTAssertTrue(check.waitForExistence(timeout: 5))
+        let checkReady = XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: check)
+        wait(for: [checkReady], timeout: 15)
+        check.click()
+
+        XCTAssertTrue(app.staticTexts["All Pieces Verified"].waitForExistence(timeout: 60))
+        XCTAssertTrue(app.buttons["torrent.checkAgain"].exists)
+        XCTAssertFalse(app.buttons["torrent.downloadMissingPieces"].exists)
+        app.buttons["torrent.checkKeepStopped"].click()
+        waitForStatus("Completed", download: download)
+
+        try assertPayloadUnchanged()
+        wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: sheet)], timeout: 5)
+
+        // Re-import the retained payload through normal Add Download to cover collision detection.
+        downloadTablePage.name("harbor-webseed.bin").rightClick()
+        let remove = app.menuItems["Remove from List"].firstMatch
+        XCTAssertTrue(remove.waitForExistence(timeout: 5))
+        remove.click()
+        let oldRow = app.descendants(matching: .any)["downloads.row.\(download.id)"].firstMatch
+        wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: oldRow)], timeout: 10)
+        try assertPayloadUnchanged()
+
+        let existingDownloads = downloadReferences()
+        openAddSheet()
+        addDownloadPage.source.click()
+        addDownloadPage.source.typeText(fixtureURL("/torrents/webseed.torrent").absoluteString)
+        let startToggle = addDownloadPage.startImmediately
+        if startToggle.value as? Int != 1 { startToggle.click() }
+        addDownloadPage.submit.click()
+
+        let checkExisting = app.buttons["torrent.checkExistingFiles"].firstMatch
+        XCTAssertTrue(checkExisting.waitForExistence(timeout: 15), "Normal add must offer Check when the payload already exists.")
+        XCTAssertTrue(checkExisting.isEnabled)
+        XCTAssertTrue(app.staticTexts.matching(
+            NSPredicate(format: "label == %@ OR value == %@", file.path, file.path)
+        ).firstMatch.exists)
+        XCTAssertEqual(downloadReferences(), existingDownloads, "Collision review must precede queueing the torrent.")
+        try assertPayloadUnchanged()
+        checkExisting.click()
+
+        let importedDownload = waitForNewDownload(excluding: existingDownloads)
+        XCTAssertTrue(sheet.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["All Pieces Verified"].waitForExistence(timeout: 60))
+        XCTAssertFalse(app.buttons["torrent.downloadMissingPieces"].exists)
+        let startSeeding = app.sheets.firstMatch.buttons["Start Seeding"].firstMatch
+        XCTAssertTrue(startSeeding.waitForExistence(timeout: 5))
+        wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: startSeeding)], timeout: 15)
+        startSeeding.click()
+        waitForStatus("Seeding", download: importedDownload, timeout: 60)
+        try assertPayloadUnchanged()
+    }
+
     func testWebseedTorrentCompletesWithExpectedPayload() throws {
         launchHarbor()
         openAddSheet()

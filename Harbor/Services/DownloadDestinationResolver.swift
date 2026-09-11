@@ -77,7 +77,7 @@ struct DownloadDestinationResolver: @unchecked Sendable {
         sourceURL: URL,
         into directory: URL
     ) throws -> URL {
-        try createDirectoryIfNeeded(directory)
+        try DurableFileSystem.createDirectoryIfNeeded(at: directory, fileManager: fileManager)
 
         let targetName = resolvedFilename(
             custom: customFilename,
@@ -103,7 +103,7 @@ struct DownloadDestinationResolver: @unchecked Sendable {
         sourceURL: URL,
         in directory: URL
     ) throws -> URL {
-        try createDirectoryIfNeeded(directory)
+        try DurableFileSystem.createDirectoryIfNeeded(at: directory, fileManager: fileManager)
         let targetName = resolvedFilename(
             custom: customFilename,
             responseSuggestedFilename: responseSuggestedFilename,
@@ -113,7 +113,9 @@ struct DownloadDestinationResolver: @unchecked Sendable {
     }
 
     nonisolated func moveDownloadedFile(from sourceURL: URL, to destinationURL: URL) throws {
-        try createDirectoryIfNeeded(destinationURL.deletingLastPathComponent())
+        try DurableFileSystem.createDirectoryIfNeeded(
+            at: destinationURL.deletingLastPathComponent(), fileManager: fileManager
+        )
         let result = sourceURL.path.withCString { sourcePath in
             destinationURL.path.withCString { destinationPath in
                 Darwin.renameatx_np(
@@ -144,24 +146,15 @@ struct DownloadDestinationResolver: @unchecked Sendable {
     }
 
     nonisolated func copyDownloadedFile(from sourceURL: URL, to stagingURL: URL) throws {
-        try createDirectoryIfNeeded(stagingURL.deletingLastPathComponent())
+        try DurableFileSystem.createDirectoryIfNeeded(
+            at: stagingURL.deletingLastPathComponent(), fileManager: fileManager
+        )
         guard try DurableFileSystem.pathEntryExists(at: stagingURL) == false else {
             throw CocoaError(.fileWriteFileExists)
         }
         try fileManager.copyItem(at: sourceURL, to: stagingURL)
         try DurableFileSystem.synchronizeFile(at: stagingURL)
         try DurableFileSystem.synchronizeParentDirectory(of: stagingURL)
-    }
-
-    private nonisolated func createDirectoryIfNeeded(_ directoryURL: URL) throws {
-        let alreadyExists = try DurableFileSystem.pathEntryExists(at: directoryURL)
-        try fileManager.createDirectory(
-            at: directoryURL,
-            withIntermediateDirectories: true
-        )
-        if alreadyExists == false {
-            try DurableFileSystem.synchronizeParentDirectory(of: directoryURL)
-        }
     }
 
     private nonisolated func sanitize(_ filename: String) -> String {

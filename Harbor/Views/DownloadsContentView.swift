@@ -33,14 +33,24 @@ struct DownloadsContentView: View {
                     .disabledCustomizationBehavior(.visibility)
 
                     TableColumn("Status", value: \.status.rawValue) { item in
-                        DownloadStatusBadge(status: item.status, downloadID: item.id)
+                        if item.torrentCheckState == .checking {
+                            Label("Checking Files…", systemImage: "checkmark.shield")
+                                .font(.caption)
+                                .accessibilityIdentifier("download.checkingStatus")
+                        } else {
+                            DownloadStatusBadge(status: item.status, downloadID: item.id)
+                        }
                     }
                     .width(135)
                     .customizationID("status")
                     .defaultVisibility(.visible)
 
                     TableColumn("Transfer", value: \.progress) { item in
-                        DownloadTransferCell(item: item)
+                        if item.torrentCheckState == .checking {
+                            TorrentCheckProgressView(progress: item.torrentCheckProgress)
+                        } else {
+                            DownloadTransferCell(item: item)
+                        }
                     }
                     .width(190)
                     .customizationID("transfer")

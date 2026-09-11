@@ -2,6 +2,9 @@ import SwiftUI
 
 struct TorrentContentsSelectionSheet: View {
     let loadPreview: @MainActor () async throws -> TorrentContentsPreview
+    var destinationFolder: URL? = nil
+    var useExistingFiles = false
+    var onCheck: (@MainActor (TorrentContentsPreview, TorrentFileSelection?, URL) -> Void)? = nil
     let onAdd: @MainActor (TorrentContentsPreview, TorrentFileSelection?) -> Void
 
     @Environment(\.dismiss) private var dismiss
@@ -9,6 +12,8 @@ struct TorrentContentsSelectionSheet: View {
     @State private var selectedIndexes: Set<Int> = []
     @State private var errorMessage: String?
     @State private var loadGeneration = 0
+    @State private var existingLocation: URL?
+    @State private var isUsingExistingFiles = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -37,6 +42,20 @@ struct TorrentContentsSelectionSheet: View {
                 }
             }
             .frame(minHeight: 320)
+
+            if let preview, onCheck != nil {
+                if isUsingExistingFiles {
+                    Text("Check existing files before downloading. You can choose what to do after the check.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                    TorrentExistingLocationPicker(preview: preview, location: $existingLocation)
+                } else {
+                    Button("Use Existing Files…") {
+                        isUsingExistingFiles = true
+                        existingLocation = TorrentExistingLocationPicker.choose(preview: preview, startingAt: destinationFolder)
+                    }
+                }
+            }
 
             footer
         }
@@ -119,22 +138,35 @@ struct TorrentContentsSelectionSheet: View {
             .accessibilityIdentifier(HarborAccessibility.torrentCancel)
             .keyboardShortcut(.cancelAction)
 
-            Button("Add Download") {
-                guard let preview else {
-                    return
-                }
-                onAdd(
-                    preview,
-                    TorrentFileSelection.partial(
-                        selectedIndexes: selectedIndexes,
-                        in: preview
+            if isUsingExistingFiles == false {
+                Button("Add Download") {
+                    guard let preview else {
+                        return
+                    }
+                    onAdd(
+                        preview,
+                        TorrentFileSelection.partial(
+                            selectedIndexes: selectedIndexes,
+                            in: preview
+                        )
                     )
-                )
-                dismiss()
+                    dismiss()
+                }
+                .accessibilityIdentifier(HarborAccessibility.torrentAdd)
+                .keyboardShortcut(.defaultAction)
+                .disabled(preview == nil || selectedIndexes.isEmpty)
             }
-            .accessibilityIdentifier(HarborAccessibility.torrentAdd)
-            .keyboardShortcut(.defaultAction)
-            .disabled(preview == nil || selectedIndexes.isEmpty)
+
+            if isUsingExistingFiles {
+                Button("Check") {
+                    guard let preview, let existingLocation else { return }
+                    onCheck?(preview, TorrentFileSelection.partial(selectedIndexes: selectedIndexes, in: preview), existingLocation)
+                    dismiss()
+                }
+                .keyboardShortcut(.defaultAction)
+                .disabled(existingLocation == nil || selectedIndexes.isEmpty)
+                .accessibilityIdentifier("torrent.checkExistingFiles")
+            }
         }
     }
 
@@ -167,6 +199,14 @@ struct TorrentContentsSelectionSheet: View {
             try Task.checkCancellation()
             preview = loadedPreview
             selectedIndexes = Set(loadedPreview.files.map(\.index))
+            isUsingExistingFiles = useExistingFiles
+            if onCheck != nil, let destinationFolder {
+                let expected = destinationFolder.appendingPathComponent(loadedPreview.name)
+                if FileManager.default.fileExists(atPath: expected.path) {
+                    existingLocation = expected
+                    isUsingExistingFiles = true
+                }
+            }
         } catch is CancellationError {
             return
         } catch {

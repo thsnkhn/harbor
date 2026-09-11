@@ -431,38 +431,18 @@ final class DownloadCoordinator: NSObject, @unchecked Sendable {
     }
 
     func pauseDownloadAndWait(id: UUID) async -> DirectDownloadPauseResult {
-        guard let context = takeContext(forDownloadID: id, suppressCompletion: true) else {
+        guard let context = takeContext(forDownloadID: id) else {
             return await waitForCompletionPublication(id: id)
         }
 
         let didPreserveRecovery = closeOwnedFile(in: context, preservingRecovery: true)
         context.task.cancel()
         context.session.finishTasksAndInvalidate()
-        let lookup = didPreserveRecovery
-            ? recoveryStore.lookup(id: id, sourceURL: context.state.sourceURL)
-            : .absent
-        switch lookup {
-        case let .available(snapshot):
-            return DirectDownloadPauseResult(
-                attemptIdentifier: context.attemptIdentifier,
-                ownedRecovery: snapshot
-            )
-        case .absent:
-            return DirectDownloadPauseResult(
-                attemptIdentifier: context.attemptIdentifier,
-                ownedRecovery: nil
-            )
-        case let .unavailable(message):
-            return DirectDownloadPauseResult(
-                attemptIdentifier: context.attemptIdentifier,
-                ownedRecovery: nil,
-                recoveryUnavailableMessage: message
-            )
-        }
+        return ownedPauseResult(for: context, didPreserveRecovery: didPreserveRecovery)
     }
 
     func cancelDownload(id: UUID) {
-        guard let context = takeContext(forDownloadID: id, suppressCompletion: true) else {
+        guard let context = takeContext(forDownloadID: id) else {
             let ownsCompletion = stateLock.withLock {
                 completionPublications[id] != nil
                     || completedPublicationPauseResults[id]?.attemptIdentifier != nil
@@ -553,16 +533,14 @@ final class DownloadCoordinator: NSObject, @unchecked Sendable {
         )
     }
 
-    private func takeContext(forDownloadID id: UUID, suppressCompletion: Bool) -> TaskContext? {
+    private func takeContext(forDownloadID id: UUID) -> TaskContext? {
         stateLock.withLock {
             guard let taskKey = taskKeysByDownloadID.removeValue(forKey: id),
                   let context = contexts.removeValue(forKey: taskKey) else {
                 return nil
             }
 
-            if suppressCompletion {
-                suppressedCompletionTaskKeys.insert(taskKey)
-            }
+            suppressedCompletionTaskKeys.insert(taskKey)
 
             return context
         }

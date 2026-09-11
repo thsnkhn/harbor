@@ -100,9 +100,21 @@ struct RootView: View {
                         sourceURL: url,
                         requestHeaders: requestHeaders
                     )
+                },
+                onCheckTorrent: { request, location in
+                    center.queueTorrentForChecking(request, location: location)
                 }
             ) { requests in
                 center.queueDownloads(requests)
+            }
+        }
+        .sheet(isPresented: Binding(
+            get: { center.checkingTorrentID != nil && center.addSheetDraft == nil },
+            set: { if !$0 { center.checkingTorrentID = nil } }
+        )) {
+            if let id = center.checkingTorrentID,
+               let item = center.downloads.first(where: { $0.id == id }) {
+                TorrentCheckSheet(center: center, item: item)
             }
         }
         .sheet(

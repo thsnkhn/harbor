@@ -174,9 +174,8 @@ nonisolated final class CompletedDownloadHandoffStore: @unchecked Sendable {
         payloadAt sourceURL: URL,
         manifest proposedManifest: CompletedDownloadHandoffManifest
     ) throws -> CompletedDownloadHandoffClaim {
-        try withAttemptLock(
-            downloadID: proposedManifest.downloadID,
-            attemptIdentifier: proposedManifest.attemptIdentifier
+        try withDownloadLock(
+            downloadID: proposedManifest.downloadID
         ) {
             try DurableFileSystem.createDirectoryIfNeeded(
                 at: directoryURL,
@@ -284,9 +283,8 @@ nonisolated final class CompletedDownloadHandoffStore: @unchecked Sendable {
     ) throws -> CompletedDownloadHandoff {
         let pathExtension = claim.packageURL.pathExtension
         if pathExtension == Self.packageExtension {
-            return try withAttemptLock(
-                downloadID: claim.manifest.downloadID,
-                attemptIdentifier: claim.manifest.attemptIdentifier
+            return try withDownloadLock(
+                downloadID: claim.manifest.downloadID
             ) {
                 try validatedHandoff(at: claim.packageURL)
             }
@@ -294,9 +292,8 @@ nonisolated final class CompletedDownloadHandoffStore: @unchecked Sendable {
         guard pathExtension == Self.stagingExtension else {
             throw CompletedDownloadHandoffError.invalidManifest
         }
-        let recoveredReadyHandoff: CompletedDownloadHandoff? = try withAttemptLock(
-            downloadID: claim.manifest.downloadID,
-            attemptIdentifier: claim.manifest.attemptIdentifier
+        let recoveredReadyHandoff: CompletedDownloadHandoff? = try withDownloadLock(
+            downloadID: claim.manifest.downloadID
         ) {
             guard let identifiers = identifiers(from: claim.packageURL),
                   claim.manifest.downloadID == identifiers.downloadID,
@@ -338,9 +335,8 @@ nonisolated final class CompletedDownloadHandoffStore: @unchecked Sendable {
             readyURL: URL,
             payloadURL: URL,
             manifest: CompletedDownloadHandoffManifest
-        ) = try withAttemptLock(
-            downloadID: claim.manifest.downloadID,
-            attemptIdentifier: claim.manifest.attemptIdentifier
+        ) = try withDownloadLock(
+            downloadID: claim.manifest.downloadID
         ) {
             guard let identifiers = identifiers(from: claim.packageURL),
                   claim.manifest.downloadID == identifiers.downloadID,
@@ -378,9 +374,8 @@ nonisolated final class CompletedDownloadHandoffStore: @unchecked Sendable {
         )
         let payloadSHA256 = payloadVerification.sha256
 
-        return try withAttemptLock(
-            downloadID: claim.manifest.downloadID,
-            attemptIdentifier: claim.manifest.attemptIdentifier
+        return try withDownloadLock(
+            downloadID: claim.manifest.downloadID
         ) {
             if try DurableFileSystem.itemExists(at: hashingInput.readyURL) {
                 do {
@@ -452,9 +447,8 @@ nonisolated final class CompletedDownloadHandoffStore: @unchecked Sendable {
         _ destinationURL: URL,
         for handoff: CompletedDownloadHandoff
     ) throws -> CompletedDownloadHandoff {
-        try withAttemptLock(
-            downloadID: handoff.manifest.downloadID,
-            attemptIdentifier: handoff.manifest.attemptIdentifier
+        try withDownloadLock(
+            downloadID: handoff.manifest.downloadID
         ) {
             let current = try validatedHandoff(at: handoff.packageURL)
             guard current.manifest.downloadID == handoff.manifest.downloadID,
@@ -482,9 +476,8 @@ nonisolated final class CompletedDownloadHandoffStore: @unchecked Sendable {
     }
 
     func validatePlacementStaging(for handoff: CompletedDownloadHandoff) throws {
-        try withAttemptLock(
-            downloadID: handoff.manifest.downloadID,
-            attemptIdentifier: handoff.manifest.attemptIdentifier
+        try withDownloadLock(
+            downloadID: handoff.manifest.downloadID
         ) {
             let current = try validatedHandoff(at: handoff.packageURL)
             guard current.manifest == handoff.manifest,
@@ -507,18 +500,16 @@ nonisolated final class CompletedDownloadHandoffStore: @unchecked Sendable {
     }
 
     func discardPlacementStaging(for handoff: CompletedDownloadHandoff) {
-        withAttemptLock(
-            downloadID: handoff.manifest.downloadID,
-            attemptIdentifier: handoff.manifest.attemptIdentifier
+        withDownloadLock(
+            downloadID: handoff.manifest.downloadID
         ) {
             discardPlacementStagingLocked(for: handoff.manifest)
         }
     }
 
     func releasePayloadAfterPlacement(for handoff: CompletedDownloadHandoff) throws {
-        try withAttemptLock(
-            downloadID: handoff.manifest.downloadID,
-            attemptIdentifier: handoff.manifest.attemptIdentifier
+        try withDownloadLock(
+            downloadID: handoff.manifest.downloadID
         ) {
             let current = try validatedHandoff(at: handoff.packageURL)
             guard current.destinationURL != nil else {
@@ -535,9 +526,8 @@ nonisolated final class CompletedDownloadHandoffStore: @unchecked Sendable {
         downloadID: UUID,
         attemptIdentifier: UUID
     ) -> CompletedDownloadHandoff? {
-        withAttemptLock(
-            downloadID: downloadID,
-            attemptIdentifier: attemptIdentifier
+        withDownloadLock(
+            downloadID: downloadID
         ) {
             let readyURL = packageURL(
                 downloadID: downloadID,
@@ -561,9 +551,8 @@ nonisolated final class CompletedDownloadHandoffStore: @unchecked Sendable {
     }
 
     func ownsAttempt(downloadID: UUID, attemptIdentifier: UUID) -> Bool {
-        withAttemptLock(
-            downloadID: downloadID,
-            attemptIdentifier: attemptIdentifier
+        withDownloadLock(
+            downloadID: downloadID
         ) {
             for pathExtension in [Self.packageExtension, Self.stagingExtension] {
                 do {
@@ -609,9 +598,8 @@ nonisolated final class CompletedDownloadHandoffStore: @unchecked Sendable {
             guard let identifiers = identifiers(from: url) else {
                 return .invalid(packageURL: url, downloadID: nil)
             }
-            return withAttemptLock(
-                downloadID: identifiers.downloadID,
-                attemptIdentifier: identifiers.attemptIdentifier
+            return withDownloadLock(
+                downloadID: identifiers.downloadID
             ) {
                 if url.pathExtension == Self.stagingExtension {
                     // Promotion already ran above. Any staging entry still
@@ -649,9 +637,8 @@ nonisolated final class CompletedDownloadHandoffStore: @unchecked Sendable {
     }
 
     func acknowledge(_ handoff: CompletedDownloadHandoff) {
-        withAttemptLock(
-            downloadID: handoff.manifest.downloadID,
-            attemptIdentifier: handoff.manifest.attemptIdentifier
+        withDownloadLock(
+            downloadID: handoff.manifest.downloadID
         ) {
             do {
                 if let manifest = manifestIfDecodable(at: handoff.packageURL) {
@@ -682,9 +669,8 @@ nonisolated final class CompletedDownloadHandoffStore: @unchecked Sendable {
         downloadID: UUID,
         attemptIdentifier: UUID? = nil
     ) throws {
-        try withAttemptLock(
-            downloadID: downloadID,
-            attemptIdentifier: attemptIdentifier ?? downloadID
+        try withDownloadLock(
+            downloadID: downloadID
         ) {
             guard try DurableFileSystem.itemExists(at: directoryURL) else {
                 return
@@ -727,9 +713,8 @@ nonisolated final class CompletedDownloadHandoffStore: @unchecked Sendable {
               let identifiers = identifiers(from: packageURL) else {
             return
         }
-        withAttemptLock(
-            downloadID: identifiers.downloadID,
-            attemptIdentifier: identifiers.attemptIdentifier
+        withDownloadLock(
+            downloadID: identifiers.downloadID
         ) {
             do {
                 if let manifest = manifestIfDecodable(at: packageURL) {
@@ -760,9 +745,8 @@ nonisolated final class CompletedDownloadHandoffStore: @unchecked Sendable {
                   retainedIDs.contains(identifiers.downloadID) == false else {
                 continue
             }
-            withAttemptLock(
-                downloadID: identifiers.downloadID,
-                attemptIdentifier: identifiers.attemptIdentifier
+            withDownloadLock(
+                downloadID: identifiers.downloadID
             ) {
                 guard retainedIDs.contains(identifiers.downloadID) == false else {
                     return
@@ -1237,9 +1221,8 @@ nonisolated final class CompletedDownloadHandoffStore: @unchecked Sendable {
             guard let identifiers = identifiers(from: url) else {
                 continue
             }
-            withAttemptLock(
-                downloadID: identifiers.downloadID,
-                attemptIdentifier: identifiers.attemptIdentifier
+            withDownloadLock(
+                downloadID: identifiers.downloadID
             ) {
                 do {
                     try promoteStagingPackageLocked(at: url)
@@ -1291,9 +1274,8 @@ nonisolated final class CompletedDownloadHandoffStore: @unchecked Sendable {
         try DurableFileSystem.synchronizeDirectory(at: directoryURL)
     }
 
-    private func withAttemptLock<T>(
+    private func withDownloadLock<T>(
         downloadID: UUID,
-        attemptIdentifier _: UUID,
         _ work: () throws -> T
     ) rethrows -> T {
         let downloadLock = registryLock.withLock {

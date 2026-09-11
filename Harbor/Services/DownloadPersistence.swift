@@ -50,11 +50,7 @@ actor DownloadPersistence {
 
     private func write(_ records: [DownloadRecord]) throws {
         let directoryURL = fileURL.deletingLastPathComponent()
-        let directoryAlreadyExists = fileManager.fileExists(atPath: directoryURL.path)
-        try fileManager.createDirectory(at: directoryURL, withIntermediateDirectories: true)
-        if directoryAlreadyExists == false {
-            try DurableFileSystem.synchronizeParentDirectory(of: directoryURL)
-        }
+        try DurableFileSystem.createDirectoryIfNeeded(at: directoryURL, fileManager: fileManager)
         let data = try JSONEncoder().encode(records)
         try data.write(to: fileURL, options: [.atomic])
         try DurableFileSystem.synchronizeFile(at: fileURL)

@@ -12,6 +12,8 @@ struct AddDownloadRequest: Sendable {
     let torrentFileSelection: TorrentFileSelection?
     let preparedTorrentMetainfo: Data?
     let torrentMetadataName: String?
+    let torrentOperation: TorrentOperationIntent
+    let torrentExistingDataPath: String?
 
     init(
         sourceKind: DownloadSourceKind,
@@ -24,7 +26,9 @@ struct AddDownloadRequest: Sendable {
         mediaFormatPreference: MediaDownloadFormatPreference? = nil,
         torrentFileSelection: TorrentFileSelection? = nil,
         preparedTorrentMetainfo: Data? = nil,
-        torrentMetadataName: String? = nil
+        torrentMetadataName: String? = nil,
+        torrentOperation: TorrentOperationIntent = .download,
+        torrentExistingDataPath: String? = nil
     ) {
         self.sourceKind = sourceKind
         self.sourceURL = sourceURL
@@ -37,5 +41,7 @@ struct AddDownloadRequest: Sendable {
         self.torrentFileSelection = torrentFileSelection
         self.preparedTorrentMetainfo = preparedTorrentMetainfo
         self.torrentMetadataName = torrentMetadataName
+        self.torrentOperation = torrentOperation
+        self.torrentExistingDataPath = torrentExistingDataPath
     }
 }

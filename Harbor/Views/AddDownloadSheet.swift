@@ -5,6 +5,8 @@ struct AddDownloadSheet: View {
     private struct TorrentPreviewSource: Identifiable {
         let sourceKind: DownloadSourceKind
         let sourceURL: URL
+        var useExistingFiles = false
+        var resolvedPreview: TorrentContentsPreview? = nil
 
         var id: String { "\(sourceKind.rawValue):\(sourceURL.absoluteString)" }
     }
@@ -26,6 +28,7 @@ struct AddDownloadSheet: View {
     let mediaPreviewProvider: @MainActor (URL) async throws -> MediaDownloadMetadata?
     let torrentPreviewProvider: @MainActor (DownloadSourceKind, URL, [RequestHeader]) async throws -> TorrentContentsPreview
     let onSubmit: @MainActor ([AddDownloadRequest]) -> Void
+    let onCheckTorrent: (@MainActor (AddDownloadRequest, URL) -> Void)?
 
     @Environment(\.dismiss) private var dismiss
     @FocusState private var focusedField: Field?
@@ -45,6 +48,8 @@ struct AddDownloadSheet: View {
     @State private var hasMediaSavePermission = true
     @State private var isResolvingMedia = false
     @State private var isSubmitting = false
+    @State private var isResolvingTorrent = false
+    @State private var torrentSubmissionTask: Task<Void, Never>?
     @State private var mediaPreviewTask: Task<Void, Never>?
     @State private var mediaPreviewGeneration = 0
     @State private var torrentPreviewSource: TorrentPreviewSource?
@@ -58,12 +63,14 @@ struct AddDownloadSheet: View {
         torrentPreviewProvider: @escaping @MainActor (DownloadSourceKind, URL, [RequestHeader]) async throws -> TorrentContentsPreview = { _, _, _ in
             throw TorrentEngineError.invalidSource
         },
+        onCheckTorrent: (@MainActor (AddDownloadRequest, URL) -> Void)? = nil,
         onSubmit: @escaping @MainActor ([AddDownloadRequest]) -> Void
     ) {
         self.settings = settings
         self.mediaPreviewProvider = mediaPreviewProvider
         self.torrentPreviewProvider = torrentPreviewProvider
         self.onSubmit = onSubmit
+        self.onCheckTorrent = onCheckTorrent
         _entryMode = State(initialValue: draft.entryMode)
         _sourceURLText = State(initialValue: draft.sourceURLText)
         _torrentFileURL = State(initialValue: draft.torrentFileURL)
@@ -137,6 +144,7 @@ struct AddDownloadSheet: View {
                 advancedSettingsSection
             }
             .formStyle(.grouped)
+            .disabled(isResolvingTorrent)
             .padding(.horizontal, -Layout.groupedFormHorizontalExpansion)
 
             if let validationMessage {
@@ -153,7 +161,15 @@ struct AddDownloadSheet: View {
                 .accessibilityIdentifier(HarborAccessibility.addCancel)
                 .keyboardShortcut(.cancelAction)
 
-                if let torrentPreviewCandidate {
+                if let torrentPreviewCandidate, isResolvingTorrent == false {
+                    if onCheckTorrent != nil {
+                        Button("Use Existing Files…") {
+                            var source = torrentPreviewCandidate
+                            source.useExistingFiles = true
+                            presentTorrentPreview(source)
+                        }
+                        .accessibilityIdentifier("add.useExistingTorrentFiles")
+                    }
                     Button("Preview") {
                         presentTorrentPreview(torrentPreviewCandidate)
                     }
@@ -167,7 +183,7 @@ struct AddDownloadSheet: View {
                 }
                 .accessibilityIdentifier(HarborAccessibility.addSubmit)
                 .keyboardShortcut(.defaultAction)
-                .disabled(canSubmit == false || isSubmitting)
+                .disabled(canSubmit == false || isSubmitting || isResolvingTorrent)
             }
         }
         .padding(24)
@@ -180,6 +196,7 @@ struct AddDownloadSheet: View {
         }
         .onDisappear {
             mediaPreviewTask?.cancel()
+            torrentSubmissionTask?.cancel()
             mediaPreviewGeneration += 1
         }
         .onChange(of: entryMode) { _, newMode in
@@ -195,22 +212,7 @@ struct AddDownloadSheet: View {
             updateDestinationForDetectedSourceIfNeeded()
         }
         .sheet(item: $torrentPreviewSource) { source in
-            TorrentContentsSelectionSheet(
-                loadPreview: {
-                    try await torrentPreviewProvider(
-                        source.sourceKind,
-                        source.sourceURL,
-                        requestHeaders
-                    )
-                },
-                onAdd: { preview, selection in
-                    submitTorrentPreview(
-                        source: source,
-                        preview: preview,
-                        selection: selection
-                    )
-                }
-            )
+            torrentContentsSheet(for: source)
         }
         .sheet(isPresented: $isRequestHeadersEditorPresented) {
             RequestHeadersEditor(
@@ -244,6 +246,46 @@ struct AddDownloadSheet: View {
                 "The supplied headers contain Cookie or Authorization information. aria2 may send these headers to every HTTP/HTTPS tracker and web seed used by this torrent. Proceed?"
             )
         }
+    }
+
+    private func torrentContentsSheet(for source: TorrentPreviewSource) -> TorrentContentsSelectionSheet {
+        let checkAction: (@MainActor (TorrentContentsPreview, TorrentFileSelection?, URL) -> Void)?
+        if let onCheckTorrent {
+            checkAction = { preview, selection, location in
+                let request = AddDownloadRequest(
+                    sourceKind: source.sourceKind,
+                    sourceURL: source.sourceURL,
+                    customFilename: nil,
+                    destinationFolder: URL(fileURLWithPath: destinationPath, isDirectory: true),
+                    shouldStartImmediately: false,
+                    requestHeaders: requestHeaders,
+                    torrentFileSelection: selection,
+                    preparedTorrentMetainfo: preview.metainfoData,
+                    torrentMetadataName: preview.name
+                )
+                onCheckTorrent(request, location)
+                dismiss()
+            }
+        } else {
+            checkAction = nil
+        }
+
+        return TorrentContentsSelectionSheet(
+            loadPreview: {
+                if let preview = source.resolvedPreview { return preview }
+                return try await torrentPreviewProvider(
+                    source.sourceKind,
+                    source.sourceURL,
+                    requestHeaders
+                )
+            },
+            destinationFolder: URL(fileURLWithPath: destinationPath, isDirectory: true),
+            useExistingFiles: source.useExistingFiles,
+            onCheck: checkAction,
+            onAdd: { preview, selection in
+                submitTorrentPreview(source: source, preview: preview, selection: selection)
+            }
+        )
     }
 
     private var torrentPreviewCandidate: TorrentPreviewSource? {
@@ -697,7 +739,7 @@ struct AddDownloadSheet: View {
     }
 
     private var addButtonTitle: String {
-        if isSubmitting {
+        if isSubmitting || isResolvingTorrent {
             return String(
                 localized: "add.button.submitting",
                 defaultValue: "Adding…",
@@ -889,6 +931,40 @@ struct AddDownloadSheet: View {
 
     @MainActor
     private func performSubmission(_ requests: [AddDownloadRequest]) {
+        if isBatchEntry == false, requests.count == 1, let request = requests.first,
+           request.shouldStartImmediately,
+           request.sourceKind.usesAria2,
+           request.preparedTorrentMetainfo == nil,
+           onCheckTorrent != nil {
+            isResolvingTorrent = true
+            torrentSubmissionTask = Task {
+                defer { isResolvingTorrent = false }
+                do {
+                    let preview = try await torrentPreviewProvider(request.sourceKind, request.sourceURL, request.requestHeaders)
+                    try Task.checkCancellation()
+                    let location = request.destinationFolder.appendingPathComponent(preview.name)
+                    if FileManager.default.fileExists(atPath: location.path) {
+                        torrentPreviewSource = TorrentPreviewSource(
+                            sourceKind: request.sourceKind,
+                            sourceURL: request.sourceURL,
+                            useExistingFiles: true,
+                            resolvedPreview: preview
+                        )
+                    } else {
+                        submitTorrentPreview(
+                            source: TorrentPreviewSource(sourceKind: request.sourceKind, sourceURL: request.sourceURL),
+                            preview: preview,
+                            selection: nil
+                        )
+                    }
+                } catch is CancellationError {
+                    return
+                } catch {
+                    validationMessage = error.localizedDescription
+                }
+            }
+            return
+        }
         onSubmit(requests)
         dismiss()
     }

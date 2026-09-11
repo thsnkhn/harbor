@@ -15,6 +15,7 @@ struct TorrentContentsPreview: Equatable, Sendable {
     let totalBytes: Int64
     let metainfoData: Data
     let infoHash: String
+    var isMultiFile: Bool = false
 }
 
 struct TorrentFileSelection: Codable, Equatable, Sendable {
@@ -164,7 +165,8 @@ enum TorrentMetainfoParser {
             files: files,
             totalBytes: totalBytes,
             metainfoData: data,
-            infoHash: infoHash
+            infoHash: infoHash,
+            isMultiFile: dictionaryValue(for: "files", in: infoEntries) != nil
         )
     }
 
@@ -178,6 +180,23 @@ enum TorrentMetainfoParser {
             return nil
         }
         return infoNode.range
+    }
+
+    nonisolated static func verificationInfo(from data: Data) throws -> (preview: TorrentContentsPreview, pieceLength: Int64, hashes: Data) {
+        let preview = try preview(from: data)
+        var parser = Parser(data: data)
+        let root = try parser.parseValue(depth: 0)
+        guard case let .dictionary(entries) = root.value,
+              let info = dictionaryValue(for: "info", in: entries),
+              case let .dictionary(infoEntries) = info.value,
+              let pieceLength = integerValue(for: "piece length", in: infoEntries), pieceLength > 0,
+              let pieces = dictionaryValue(for: "pieces", in: infoEntries),
+              case let .bytes(hashes) = pieces.value,
+              hashes.count % 20 == 0,
+              Int64(hashes.count / 20) == preview.totalBytes / pieceLength + (preview.totalBytes % pieceLength == 0 ? 0 : 1) else {
+            throw TorrentMetainfoError.malformed
+        }
+        return (preview, pieceLength, Data(hashes))
     }
 
     private nonisolated static func preferredString(

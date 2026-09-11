@@ -124,9 +124,15 @@ final class BrowserDownloadCoordinator: NSObject {
         let task: Task<BrowserDownloadEvent, Never>
     }
 
-    private struct PendingNavigationStop {
+    private enum PendingStopKind {
+        case resume(Data)
+        case navigation
+    }
+
+    private struct PendingStop {
         let session: BrowserDownloadSession
-        let reason: TerminationReason
+        let kind: PendingStopKind
+        var reason: TerminationReason
         var waiters: [(Data?) -> Void]
     }
 
@@ -155,10 +161,8 @@ final class BrowserDownloadCoordinator: NSObject {
 
     private var activeSession: BrowserDownloadSession?
     private var pendingResumes: [UUID: PendingResume] = [:]
-    private var pendingResumeTerminationReasons: [UUID: TerminationReason] = [:]
-    private var pendingResumeStopWaiters: [UUID: [(Data?) -> Void]] = [:]
     private var pendingNavigationConversions: [UUID: BrowserDownloadSession] = [:]
-    private var pendingNavigationStops: [UUID: PendingNavigationStop] = [:]
+    private var pendingStops: [UUID: PendingStop] = [:]
     private var downloadContexts: [ObjectIdentifier: DownloadContext] = [:]
     private var activeDownloadsByID: [UUID: ActiveDownloadHandle] = [:]
     private var stopWaiters: [UUID: [(ActiveDownloadStopResult) -> Void]] = [:]
@@ -305,7 +309,7 @@ final class BrowserDownloadCoordinator: NSObject {
     ) -> Bool {
         guard let pending = pendingResumes[downloadID],
               pending.session.id == session.id,
-              pendingResumeTerminationReasons[downloadID] == nil,
+              pendingStops[downloadID] == nil,
               attemptIdentifier == nil
                 || pending.session.attemptIdentifier == attemptIdentifier else {
             return false
@@ -320,7 +324,9 @@ final class BrowserDownloadCoordinator: NSObject {
     func cancelSession() {
         if let session = activeSession {
             pendingNavigationConversions.removeValue(forKey: session.downloadID)
-            pendingNavigationStops.removeValue(forKey: session.downloadID)
+            if case .navigation? = pendingStops[session.downloadID]?.kind {
+                pendingStops.removeValue(forKey: session.downloadID)
+            }
         }
         activeSession?.webView.stopLoading()
         activeSession = nil
@@ -377,31 +383,16 @@ final class BrowserDownloadCoordinator: NSObject {
             )
         }
 
-        if let pending = pendingResumes[id] {
+        if let pendingSession = pendingResumes[id]?.session ?? pendingNavigationConversions[id] {
             let resumeData: Data? = await withCheckedContinuation { continuation in
-                _ = requestPendingResumeStop(
+                _ = requestPendingStop(
                     id: id,
                     reason: cancelling ? .cancel : .pause,
                     completion: { continuation.resume(returning: $0) }
                 )
             }
             return BrowserDownloadQuiescence(
-                attemptIdentifier: pending.session.attemptIdentifier,
-                resumeData: resumeData
-            )
-        }
-
-
-        if let pending = pendingNavigationConversions[id] {
-            let resumeData: Data? = await withCheckedContinuation { continuation in
-                _ = requestPendingNavigationStop(
-                    id: id,
-                    reason: cancelling ? .cancel : .pause,
-                    completion: { continuation.resume(returning: $0) }
-                )
-            }
-            return BrowserDownloadQuiescence(
-                attemptIdentifier: pending.attemptIdentifier,
+                attemptIdentifier: pendingSession.attemptIdentifier,
                 resumeData: resumeData
             )
         }
@@ -470,7 +461,7 @@ final class BrowserDownloadCoordinator: NSObject {
             }
             var pendingIDs = Set(pendingResumes.keys)
             pendingIDs.formUnion(pendingNavigationConversions.keys)
-            pendingIDs.formUnion(pendingNavigationStops.keys)
+            pendingIDs.formUnion(pendingStops.keys)
             pendingIDs.formUnion(activeDownloadsByID.keys)
             pendingIDs.formUnion(completionPublications.keys)
             pendingIDs.formUnion(completionPublicationFailures.keys)
@@ -505,10 +496,8 @@ final class BrowserDownloadCoordinator: NSObject {
 
     func discardRecoveryDataOrThrow(id: UUID) throws {
         pendingResumes.removeValue(forKey: id)
-        pendingResumeTerminationReasons.removeValue(forKey: id)
-        pendingResumeStopWaiters.removeValue(forKey: id)
         pendingNavigationConversions.removeValue(forKey: id)
-        pendingNavigationStops.removeValue(forKey: id)
+        pendingStops.removeValue(forKey: id)
         completedActiveStopResults.removeValue(forKey: id)
         completionPublicationFailures.removeValue(forKey: id)
         try discardPartialFiles(downloadID: id)
@@ -517,10 +506,8 @@ final class BrowserDownloadCoordinator: NSObject {
 
     func discardPartialRecoveryData(id: UUID) {
         pendingResumes.removeValue(forKey: id)
-        pendingResumeTerminationReasons.removeValue(forKey: id)
-        pendingResumeStopWaiters.removeValue(forKey: id)
         pendingNavigationConversions.removeValue(forKey: id)
-        pendingNavigationStops.removeValue(forKey: id)
+        pendingStops.removeValue(forKey: id)
         completedActiveStopResults.removeValue(forKey: id)
         try? discardPartialFiles(downloadID: id)
     }
@@ -611,34 +598,49 @@ final class BrowserDownloadCoordinator: NSObject {
         download.delegate = self
     }
 
-    private func requestPendingResumeStop(
+    private func requestPendingStop(
         id: UUID,
         reason: TerminationReason,
         completion: @escaping (Data?) -> Void
     ) -> Bool {
-        guard let pending = pendingResumes[id] else {
+        let session: BrowserDownloadSession
+        let kind: PendingStopKind
+        if let pending = pendingResumes[id] {
+            session = pending.session
+            kind = .resume(pending.resumeData)
+        } else if let pending = pendingNavigationConversions[id] {
+            session = pending
+            kind = .navigation
+        } else {
             return false
         }
 
-        if reason == .cancel || pendingResumeTerminationReasons[id] == nil {
-            pendingResumeTerminationReasons[id] = reason
+        if var stop = pendingStops[id] {
+            if case .resume = stop.kind, reason == .cancel {
+                stop.reason = reason
+            }
+            stop.waiters.append(completion)
+            pendingStops[id] = stop
+        } else {
+            pendingStops[id] = PendingStop(
+                session: session, kind: kind, reason: reason, waiters: [completion]
+            )
         }
-        pendingResumeStopWaiters[id, default: []].append(completion)
-        if activeSession?.id == pending.session.id {
-            pending.session.webView.stopLoading()
+        if case .navigation = kind {
+            session.webView.stopLoading()
+        } else if activeSession?.id == session.id {
+            session.webView.stopLoading()
+        }
+        if activeSession?.id == session.id {
             activeSession = nil
         }
-        // WebKit does not guarantee that resumeDownload's completion handler
-        // fires after its hosting view is stopped or closed. Bound quiescence;
-        // a late callback is rejected by the pending-token ownership check.
-        let sessionIdentifier = pending.session.id
-        let webViewIdentifier = ObjectIdentifier(pending.session.webView)
+        // WebKit may omit a resume or conversion callback after the view stops.
+        // Bound the wait; identity checks reject callbacks for retired sessions.
+        let sessionIdentifier = session.id
+        let webViewIdentifier = ObjectIdentifier(session.webView)
         Task { @MainActor [weak self] in
             try? await Task.sleep(for: .seconds(1))
-            guard let self else {
-                return
-            }
-            self.finishPendingResumeStop(
+            self?.finishPendingStop(
                 id: id,
                 sessionIdentifier: sessionIdentifier,
                 webViewIdentifier: webViewIdentifier
@@ -647,29 +649,34 @@ final class BrowserDownloadCoordinator: NSObject {
         return true
     }
 
-    private func finishPendingResumeStop(
+    private func finishPendingStop(
         id: UUID,
         sessionIdentifier: UUID,
         webViewIdentifier: ObjectIdentifier,
         resumeData deliveredResumeData: Data? = nil
     ) {
-        guard let pending = pendingResumes[id],
-              pending.session.id == sessionIdentifier,
-              ObjectIdentifier(pending.session.webView) == webViewIdentifier,
-              let reason = pendingResumeTerminationReasons[id] else {
+        guard let stop = pendingStops[id],
+              stop.session.id == sessionIdentifier,
+              ObjectIdentifier(stop.session.webView) == webViewIdentifier else {
             return
         }
-        pendingResumes.removeValue(forKey: id)
-        pendingResumeTerminationReasons.removeValue(forKey: id)
-        pending.session.webView.stopLoading()
+        let resumeData: Data?
+        switch stop.kind {
+        case let .resume(originalResumeData):
+            pendingResumes.removeValue(forKey: id)
+            resumeData = stop.reason == .pause
+                ? (deliveredResumeData ?? originalResumeData)
+                : nil
+        case .navigation:
+            pendingNavigationConversions.removeValue(forKey: id)
+            resumeData = deliveredResumeData
+        }
+        pendingStops.removeValue(forKey: id)
+        stop.session.webView.stopLoading()
         if activeSession?.id == sessionIdentifier {
             activeSession = nil
         }
-        let resumeData = reason == .pause
-            ? (deliveredResumeData ?? pending.resumeData)
-            : nil
-        let waiters = pendingResumeStopWaiters.removeValue(forKey: id) ?? []
-        waiters.forEach { $0(resumeData) }
+        stop.waiters.forEach { $0(resumeData) }
     }
 
     private func abandonPendingResume(
@@ -677,78 +684,13 @@ final class BrowserDownloadCoordinator: NSObject {
         pending: PendingResume
     ) {
         pendingResumes.removeValue(forKey: downloadID)
-        let reason = pendingResumeTerminationReasons.removeValue(forKey: downloadID)
-        let resumeData = reason == .pause ? pending.resumeData : nil
-        let waiters = pendingResumeStopWaiters.removeValue(forKey: downloadID) ?? []
-        waiters.forEach { $0(resumeData) }
+        let stop = pendingStops.removeValue(forKey: downloadID)
+        let resumeData = stop?.reason == .pause ? pending.resumeData : nil
+        stop?.waiters.forEach { $0(resumeData) }
         if activeSession?.id == pending.session.id {
             pending.session.webView.stopLoading()
             activeSession = nil
         }
-    }
-
-    private func requestPendingNavigationStop(
-        id: UUID,
-        reason: TerminationReason,
-        completion: @escaping (Data?) -> Void
-    ) -> Bool {
-        guard let session = pendingNavigationConversions[id] else {
-            return false
-        }
-        if var stop = pendingNavigationStops[id] {
-            stop.waiters.append(completion)
-            pendingNavigationStops[id] = stop
-        } else {
-            pendingNavigationStops[id] = PendingNavigationStop(
-                session: session,
-                reason: reason,
-                waiters: [completion]
-            )
-        }
-        session.webView.stopLoading()
-        if activeSession?.id == session.id {
-            activeSession = nil
-        }
-        // WebKit normally follows a policy conversion with didBecome, but a
-        // stopped navigation is allowed to end before producing a WKDownload.
-        // At that point there is no destination and therefore no writer to
-        // quiesce. Bound the wait and reject any late download callback as
-        // unowned instead of hanging Pause, Cancel, or app termination.
-        let sessionIdentifier = session.id
-        let webViewIdentifier = ObjectIdentifier(session.webView)
-        Task { @MainActor [weak self] in
-            try? await Task.sleep(for: .seconds(1))
-            guard let self else {
-                return
-            }
-            self.finishPendingNavigationStop(
-                id: id,
-                sessionIdentifier: sessionIdentifier,
-                webViewIdentifier: webViewIdentifier,
-                resumeData: nil
-            )
-        }
-        return true
-    }
-
-    private func finishPendingNavigationStop(
-        id: UUID,
-        sessionIdentifier: UUID,
-        webViewIdentifier: ObjectIdentifier,
-        resumeData: Data?
-    ) {
-        guard let stop = pendingNavigationStops[id],
-              stop.session.id == sessionIdentifier,
-              ObjectIdentifier(stop.session.webView) == webViewIdentifier else {
-            return
-        }
-        pendingNavigationConversions.removeValue(forKey: id)
-        pendingNavigationStops.removeValue(forKey: id)
-        stop.session.webView.stopLoading()
-        if activeSession?.id == sessionIdentifier {
-            activeSession = nil
-        }
-        stop.waiters.forEach { $0(resumeData) }
     }
 
     private func cancelPendingNavigationDownloadIfNeeded(
@@ -770,26 +712,13 @@ final class BrowserDownloadCoordinator: NSObject {
         webView: WKWebView,
         cancel: (@escaping @Sendable (Data?) -> Void) -> Void
     ) -> Bool {
-        guard let stop = pendingNavigationStops[downloadID],
+        guard let stop = pendingStops[downloadID],
+              case .navigation = stop.kind,
               stop.session.id == session.id,
               stop.session.webView === webView else {
             return false
         }
-        let sessionIdentifier = stop.session.id
-        let webViewIdentifier = ObjectIdentifier(webView)
-        cancel { [weak self] resumeData in
-            Task { @MainActor [weak self] in
-                guard let self else {
-                    return
-                }
-                self.finishPendingNavigationStop(
-                    id: downloadID,
-                    sessionIdentifier: sessionIdentifier,
-                    webViewIdentifier: webViewIdentifier,
-                    resumeData: resumeData
-                )
-            }
-        }
+        cancelPendingDownload(session: stop.session, cancel: cancel)
         return true
     }
 
@@ -820,18 +749,28 @@ final class BrowserDownloadCoordinator: NSObject {
               pending.session.id == session.id,
               pending.session.attemptIdentifier == attemptIdentifier,
               pending.session.webView === webView,
-              pendingResumeTerminationReasons[downloadID] != nil else {
+              case .resume? = pendingStops[downloadID]?.kind else {
             return false
         }
 
+        cancelPendingDownload(session: session, cancel: cancel)
+        return true
+    }
+
+    private func cancelPendingDownload(
+        session: BrowserDownloadSession,
+        cancel: (@escaping @Sendable (Data?) -> Void) -> Void
+    ) {
+        let downloadID = session.downloadID
         let sessionIdentifier = session.id
+        let webView = session.webView
         let webViewIdentifier = ObjectIdentifier(webView)
         cancel { [weak self] resumeData in
             Task { @MainActor [weak self] in
                 guard let self else {
                     return
                 }
-                self.finishPendingResumeStop(
+                self.finishPendingStop(
                     id: downloadID,
                     sessionIdentifier: sessionIdentifier,
                     webViewIdentifier: webViewIdentifier,
@@ -839,7 +778,6 @@ final class BrowserDownloadCoordinator: NSObject {
                 )
             }
         }
-        return true
     }
 
     private func clearActiveSession(matching context: DownloadContext) {
@@ -1051,7 +989,7 @@ final class BrowserDownloadCoordinator: NSObject {
         if let pending = pendingNavigationConversions[id] {
             return pending.attemptIdentifier
         }
-        if let pending = pendingNavigationStops[id] {
+        if let pending = pendingStops[id] {
             return pending.session.attemptIdentifier
         }
         if let activeSession, activeSession.downloadID == id {
@@ -1107,10 +1045,13 @@ final class BrowserDownloadCoordinator: NSObject {
     }
 
     private func completeNavigationFailure(_ error: Error, from webView: WKWebView) {
-        if let pendingStop = pendingNavigationStops.first(where: {
-            $0.value.session.webView === webView
+        if let pendingStop = pendingStops.first(where: {
+            if case .navigation = $0.value.kind {
+                return $0.value.session.webView === webView
+            }
+            return false
         }) {
-            finishPendingNavigationStop(
+            finishPendingStop(
                 id: pendingStop.key,
                 sessionIdentifier: pendingStop.value.session.id,
                 webViewIdentifier: ObjectIdentifier(pendingStop.value.session.webView),
@@ -1131,7 +1072,7 @@ final class BrowserDownloadCoordinator: NSObject {
         let attemptIdentifier = activeSession.attemptIdentifier
         self.activeSession = nil
         pendingNavigationConversions.removeValue(forKey: downloadID)
-        pendingNavigationStops.removeValue(forKey: downloadID)
+        pendingStops.removeValue(forKey: downloadID)
         onEvent(
             .failed(
                 id: downloadID,

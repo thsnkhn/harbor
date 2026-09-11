@@ -1,6 +1,731 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Use Existing Files…" : {
+      "comment": "Torrent file checking interface.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Use Existing Files…"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Usar archivos existentes…"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Usa file esistenti…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用现有文件…"
+          }
+        }
+      }
+    },
+    "Check Files…" : {
+      "comment": "Torrent file checking interface.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Check Files…"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verificar archivos…"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verifica file…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "检查文件…"
+          }
+        }
+      }
+    },
+    "Check" : {
+      "comment": "Torrent file checking interface.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Check"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verificar"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verifica"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "检查"
+          }
+        }
+      }
+    },
+    "Check Torrent Files" : {
+      "comment": "Torrent file checking interface.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Check Torrent Files"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verificar archivos del torrent"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verifica file torrent"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "检查种子文件"
+          }
+        }
+      }
+    },
+    "Checking Files…" : {
+      "comment": "Torrent file checking interface.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Checking Files…"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verificando archivos…"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verifica dei file…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在检查文件…"
+          }
+        }
+      }
+    },
+    "Keep Stopped" : {
+      "comment": "Torrent file checking interface.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keep Stopped"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mantener detenido"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mantieni fermo"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保持停止"
+          }
+        }
+      }
+    },
+    "Download Missing Pieces" : {
+      "comment": "Torrent file checking interface.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Download Missing Pieces"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Descargar piezas faltantes"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scarica le parti mancanti"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下载缺失的数据块"
+          }
+        }
+      }
+    },
+    "Choose Location…" : {
+      "comment": "Torrent file checking interface.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose Location…"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Elegir ubicación…"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scegli posizione…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选择位置…"
+          }
+        }
+      }
+    },
+    "Existing files location" : {
+      "comment": "Torrent file checking interface.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Existing files location"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ubicación de los archivos existentes"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Posizione dei file esistenti"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "现有文件位置"
+          }
+        }
+      }
+    },
+    "No location selected" : {
+      "comment": "Torrent file checking interface.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No location selected"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ninguna ubicación seleccionada"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nessuna posizione selezionata"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未选择位置"
+          }
+        }
+      }
+    },
+    "Select the torrent’s root folder." : {
+      "comment": "Torrent file checking interface.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Select the torrent’s root folder."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Selecciona la carpeta raíz del torrent."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seleziona la cartella principale del torrent."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选择种子的根文件夹。"
+          }
+        }
+      }
+    },
+    "Select the existing file." : {
+      "comment": "Torrent file checking interface.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Select the existing file."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Selecciona el archivo existente."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seleziona il file esistente."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选择现有文件。"
+          }
+        }
+      }
+    },
+    "Choose" : {
+      "comment": "Torrent file checking interface.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Elegir"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scegli"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选择"
+          }
+        }
+      }
+    },
+    "Choose the folder that contains this torrent’s files." : {
+      "comment": "Torrent file checking interface.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose the folder that contains this torrent’s files."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Elige la carpeta que contiene los archivos de este torrent."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scegli la cartella che contiene i file di questo torrent."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选择包含此种子文件的文件夹。"
+          }
+        }
+      }
+    },
+    "Choose the existing file to check against this torrent." : {
+      "comment": "Torrent file checking interface.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose the existing file to check against this torrent."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Elige el archivo existente que se verificará con este torrent."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scegli il file esistente da verificare con questo torrent."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选择要根据此种子检查的现有文件。"
+          }
+        }
+      }
+    },
+    "Check existing files before downloading. You can choose what to do after the check." : {
+      "comment": "Torrent file checking interface.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Check existing files before downloading. You can choose what to do after the check."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verifica los archivos existentes antes de descargar. Después podrás elegir qué hacer."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verifica i file esistenti prima di scaricare. Dopo la verifica puoi scegliere cosa fare."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下载前检查现有文件。检查后可以选择下一步操作。"
+          }
+        }
+      }
+    },
+    "Harbor is checking the existing files. Downloads stay stopped until you choose an action." : {
+      "comment": "Torrent file checking interface.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Harbor is checking the existing files. Downloads stay stopped until you choose an action."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Harbor está verificando los archivos existentes. Las descargas seguirán detenidas hasta que elijas una acción."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Harbor sta verificando i file esistenti. I download restano fermi finché non scegli un’azione."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Harbor 正在检查现有文件。在你选择操作前，下载将保持停止。"
+          }
+        }
+      }
+    },
+    "All Pieces Verified" : {
+      "comment": "Torrent file checking interface.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "All Pieces Verified"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Todas las piezas verificadas"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tutte le parti verificate"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "所有数据块均已验证"
+          }
+        }
+      }
+    },
+    "The files are complete. You can start seeding or keep the torrent stopped." : {
+      "comment": "Torrent file checking interface.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The files are complete. You can start seeding or keep the torrent stopped."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Los archivos están completos. Puedes empezar a compartir o mantener el torrent detenido."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "I file sono completi. Puoi avviare la condivisione o mantenere il torrent fermo."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "文件完整。你可以开始做种或保持种子停止。"
+          }
+        }
+      }
+    },
+    "Missing or Damaged Pieces" : {
+      "comment": "Torrent file checking interface.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Missing or Damaged Pieces"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Piezas faltantes o dañadas"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Parti mancanti o danneggiate"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "数据块缺失或损坏"
+          }
+        }
+      }
+    },
+    "Download the missing pieces, check another location, or keep the torrent stopped." : {
+      "comment": "Torrent file checking interface.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Download the missing pieces, check another location, or keep the torrent stopped."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Descarga las piezas faltantes, verifica otra ubicación o mantén el torrent detenido."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scarica le parti mancanti, verifica un’altra posizione o mantieni il torrent fermo."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下载缺失的数据块、检查其他位置，或保持种子停止。"
+          }
+        }
+      }
+    },
+    "Choose the existing files, then check them against the torrent metadata." : {
+      "comment": "Torrent file checking interface.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose the existing files, then check them against the torrent metadata."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Elige los archivos existentes y verifícalos con los metadatos del torrent."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scegli i file esistenti, poi verificali con i metadati del torrent."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选择现有文件，然后根据种子元数据进行检查。"
+          }
+        }
+      }
+    },
+    "Selected Files Verified" : {
+      "comment": "Torrent file checking interface.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Selected Files Verified"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Archivos seleccionados verificados"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "File selezionati verificati"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "所选文件均已验证"
+          }
+        }
+      }
+    },
+    "The selected files are complete. You can start seeding or keep the torrent stopped." : {
+      "comment": "Torrent file checking interface.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The selected files are complete. You can start seeding or keep the torrent stopped."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Los archivos seleccionados están completos. Puedes empezar a compartir o mantener el torrent detenido."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "I file selezionati sono completi. Puoi avviare la condivisione o mantenere il torrent fermo."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "所选文件完整。你可以开始做种或保持种子停止。"
+          }
+        }
+      }
+    },
+    "Check Again" : {
+      "comment": "Torrent file checking interface.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Check Again"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verificar de nuevo"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verifica di nuovo"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新检查"
+          }
+        }
+      }
+    },
     "%@: %@" : {
       "comment" : "A label that reads the accessibility label and the value.",
       "isCommentAutoGenerated" : true,

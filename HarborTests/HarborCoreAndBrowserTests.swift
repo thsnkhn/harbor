@@ -74,6 +74,32 @@ extension HarborModelAndSafetyTests {
         XCTAssertFalse(coordinator.hasPendingOrActiveAttempt(id: id))
     }
 
+    func testPendingBrowserResumeCancellationDiscardsBlobAndRejectsLateClaim() async throws {
+        let coordinator = BrowserDownloadCoordinator(
+            resumeDownload: { _, _, _ in },
+            cancelUnownedDownload: { _ in },
+            onEvent: { _ in }
+        )
+        let id = UUID()
+        let session = coordinator.startSession(
+            downloadID: id,
+            sourceURL: try XCTUnwrap(URL(string: "https://example.test/download")),
+            displayName: "Download",
+            resumeData: Data("opaque-webkit-resume-data".utf8)
+        )
+
+        let result = await coordinator.quiesceDownload(id: id, cancelling: true)
+
+        XCTAssertEqual(result?.attemptIdentifier, session.attemptIdentifier)
+        XCTAssertNil(result?.resumeData)
+        XCTAssertFalse(coordinator.hasPendingOrActiveAttempt(id: id))
+        XCTAssertFalse(coordinator.claimPendingResume(
+            downloadID: id,
+            session: session,
+            webView: session.webView
+        ))
+    }
+
     func testStaleBrowserCallbacksCannotDismissReplacementSession() throws {
         var failedDownloadIDs: [UUID] = []
         let coordinator = BrowserDownloadCoordinator(
