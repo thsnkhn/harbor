@@ -32,7 +32,8 @@ SPARKLE_BIN_DIR="${SPARKLE_BIN_DIR:-}"
 DOWNLOAD_URL_PREFIX="${DOWNLOAD_URL_PREFIX:-}"
 RELEASE_NOTES_URL_PREFIX="${RELEASE_NOTES_URL_PREFIX:-}"
 PUBLIC_FEED_URL="${PUBLIC_FEED_URL:-https://thsnkhn.github.io/harbor/appcast.xml}"
-MAXIMUM_DELTAS="${MAXIMUM_DELTAS:-0}"
+MAXIMUM_DELTAS="${MAXIMUM_DELTAS:-3}"
+MAXIMUM_VERSIONS="${MAXIMUM_VERSIONS:-4}"
 RUN_RELEASE_SMOKE="${RUN_RELEASE_SMOKE:-YES}"
 PREPARE_RELEASE_APP="${PREPARE_RELEASE_APP:-YES}"
 ALLOW_DIRTY_RELEASE="${ALLOW_DIRTY_RELEASE:-NO}"
@@ -372,9 +373,6 @@ echo "Validating app signature..."
 xcrun stapler validate "$APP_PATH"
 verify_app_signature
 
-ensure_release_tag
-ensure_github_release
-
 mkdir -p "$OUTPUT_DIR"
 rm -rf "$STAGING_ROOT"
 mkdir -p "$STAGING_ROOT"
@@ -421,15 +419,38 @@ verify_dmg_contents
 ensure_pages_worktree
 
 UPDATES_DIR="$PAGES_WORKTREE/$UPDATES_SUBDIR"
+PREVIOUS_ARCHIVE_URLS=""
+
+if [ -f "$PAGES_WORKTREE/appcast.xml" ]; then
+  PREVIOUS_ARCHIVE_URLS="$(
+    grep '<enclosure ' "$PAGES_WORKTREE/appcast.xml" \
+      | grep -v 'sparkle:deltaFrom=' \
+      | sed -n 's/.*url="\([^"]*\)".*/\1/p' \
+      | head -n "$MAXIMUM_DELTAS"
+  )"
+fi
+
 rm -rf "$APPCAST_SOURCE_DIR"
 mkdir -p "$APPCAST_SOURCE_DIR"
 mkdir -p "$UPDATES_DIR"
 cp "$DMG_PATH" "$APPCAST_SOURCE_DIR/$DMG_NAME"
 rm -f "$UPDATES_DIR/$DMG_NAME"
 
+if [ -f "$PAGES_WORKTREE/appcast.xml" ]; then
+  cp "$PAGES_WORKTREE/appcast.xml" "$APPCAST_SOURCE_DIR/appcast.xml"
+fi
+
+printf '%s\n' "$PREVIOUS_ARCHIVE_URLS" | while IFS= read -r PREVIOUS_ARCHIVE_URL; do
+  [ -n "$PREVIOUS_ARCHIVE_URL" ] || continue
+  PREVIOUS_ARCHIVE_NAME="${PREVIOUS_ARCHIVE_URL##*/}"
+  echo "Downloading $PREVIOUS_ARCHIVE_NAME for Sparkle delta generation..."
+  curl --fail --location --retry 3 \
+    --output "$APPCAST_SOURCE_DIR/$PREVIOUS_ARCHIVE_NAME" \
+    "$PREVIOUS_ARCHIVE_URL"
+done
+
 if [ -n "${RELEASE_NOTES:-}" ]; then
   printf '%s\n' "$RELEASE_NOTES" > "$APPCAST_SOURCE_DIR/$PROJECT_NAME-$VERSION.md"
-  cp "$APPCAST_SOURCE_DIR/$PROJECT_NAME-$VERSION.md" "$UPDATES_DIR/$PROJECT_NAME-$VERSION.md"
 fi
 
 echo "Generating Sparkle appcast..."
@@ -437,15 +458,56 @@ echo "Generating Sparkle appcast..."
   --download-url-prefix "$DOWNLOAD_URL_PREFIX" \
   --release-notes-url-prefix "$RELEASE_NOTES_URL_PREFIX" \
   --maximum-deltas "$MAXIMUM_DELTAS" \
-  -o "$PAGES_WORKTREE/appcast.xml" \
+  --maximum-versions "$MAXIMUM_VERSIONS" \
+  --versions "$BUILD_NUMBER" \
+  -o "$APPCAST_SOURCE_DIR/appcast.xml" \
   "$APPCAST_SOURCE_DIR"
 
+printf '%s\n' "$PREVIOUS_ARCHIVE_URLS" | while IFS= read -r PREVIOUS_ARCHIVE_URL; do
+  [ -n "$PREVIOUS_ARCHIVE_URL" ] || continue
+  PREVIOUS_ARCHIVE_NAME="${PREVIOUS_ARCHIVE_URL##*/}"
+  GENERATED_ARCHIVE_URL="$DOWNLOAD_URL_PREFIX$PREVIOUS_ARCHIVE_NAME"
+
+  if [ "$GENERATED_ARCHIVE_URL" != "$PREVIOUS_ARCHIVE_URL" ]; then
+    # TODO: Use one shared archive URL prefix so Sparkle can preserve these URLs itself.
+    sed -i '' \
+      "s|url=\"$GENERATED_ARCHIVE_URL\"|url=\"$PREVIOUS_ARCHIVE_URL\"|" \
+      "$APPCAST_SOURCE_DIR/appcast.xml"
+  fi
+
+  if ! grep -F "url=\"$PREVIOUS_ARCHIVE_URL\"" "$APPCAST_SOURCE_DIR/appcast.xml" >/dev/null; then
+    echo "Sparkle appcast lost the fallback URL for $PREVIOUS_ARCHIVE_NAME." >&2
+    exit 1
+  fi
+done
+
+DELTA_FILES="$(find "$APPCAST_SOURCE_DIR" -maxdepth 1 -type f -name '*.delta' -print)"
+
+if [ "$MAXIMUM_DELTAS" -gt 0 ] && [ -n "$PREVIOUS_ARCHIVE_URLS" ] && [ -z "$DELTA_FILES" ]; then
+  echo "Sparkle did not generate any delta updates." >&2
+  exit 1
+fi
+
+cp "$APPCAST_SOURCE_DIR/appcast.xml" "$PAGES_WORKTREE/appcast.xml"
+
+if [ -n "${RELEASE_NOTES:-}" ]; then
+  cp "$APPCAST_SOURCE_DIR/$PROJECT_NAME-$VERSION.md" "$UPDATES_DIR/$PROJECT_NAME-$VERSION.md"
+fi
+
 touch "$PAGES_WORKTREE/.nojekyll"
+
+ensure_release_tag
+ensure_github_release
 
 echo "Uploading DMG to GitHub release..."
 gh release upload "$RELEASE_TAG" "$DMG_PATH" --repo "$GITHUB_REPO" --clobber
 cp "$DMG_PATH" "$LATEST_DMG_PATH"
 gh release upload "$RELEASE_TAG" "$LATEST_DMG_PATH" --repo "$GITHUB_REPO" --clobber
+
+for DELTA_PATH in $DELTA_FILES; do
+  echo "Uploading $(basename "$DELTA_PATH") to GitHub release..."
+  gh release upload "$RELEASE_TAG" "$DELTA_PATH" --repo "$GITHUB_REPO" --clobber
+done
 
 git -C "$PAGES_WORKTREE" add appcast.xml .nojekyll "$UPDATES_SUBDIR"
 
