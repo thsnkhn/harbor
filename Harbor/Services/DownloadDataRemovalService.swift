@@ -1,4 +1,5 @@
 import Foundation
+import Darwin
 
 struct DownloadPayloadPathResolution: Equatable, Sendable {
     let safeURLs: [URL]
@@ -93,7 +94,8 @@ struct DownloadDataRemovalService {
 
     nonisolated func movePayloadDataToTrash(
         destinationFolderPath: String,
-        payloadPaths: [String]
+        payloadPaths: [String],
+        removeEmptyParents: Bool = false
     ) -> DownloadDataRemovalResult {
         let resolution = resolvePayloadURLs(
             destinationFolderPath: destinationFolderPath,
@@ -138,6 +140,26 @@ struct DownloadDataRemovalService {
                         message: error.localizedDescription
                     )
                 )
+            }
+        }
+
+        if removeEmptyParents {
+            let destination = URL(fileURLWithPath: destinationFolderPath).standardizedFileURL
+            var parents = Set<URL>()
+            for url in resolution.safeURLs {
+                var parent = url.deletingLastPathComponent()
+                while parent.pathComponents.count > destination.pathComponents.count {
+                    parents.insert(parent)
+                    parent.deleteLastPathComponent()
+                }
+            }
+            for parent in parents.sorted(by: { $0.pathComponents.count > $1.pathComponents.count }) {
+                let safe = resolvePayloadURLs(destinationFolderPath: destinationFolderPath, payloadPaths: [parent.path])
+                guard !safe.safeURLs.isEmpty else { continue }
+                // rmdir removes only empty directories, even if new files arrive during cleanup.
+                if rmdir(parent.path) != 0, errno != ENOTEMPTY, errno != EEXIST, errno != ENOENT {
+                    failures.append(DownloadDataRemovalFailure(path: parent.path, message: String(cString: strerror(errno))))
+                }
             }
         }
 

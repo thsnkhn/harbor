@@ -40,7 +40,7 @@ struct HarborApp: App {
                 }
         }
         .handlesExternalEvents(matching: ["*"])
-        .defaultSize(width: 1_320, height: 820)
+        .defaultSize(width: 1_040, height: 680)
         .defaultPosition(.center)
         .windowToolbarStyle(.unified)
         .windowResizability(.contentMinSize)

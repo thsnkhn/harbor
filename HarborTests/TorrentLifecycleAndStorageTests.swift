@@ -272,6 +272,53 @@ final class TorrentLifecycleAndStorageTests: XCTestCase {
         )
     }
 
+    func testTorrentFileImportCleansVerifiedMetadataWithDifferentHashName() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let metainfo = makeTorrentMetainfo(announceURL: "https://tracker.example/announce")
+        let generated = root.appendingPathComponent(String(repeating: "b", count: 40) + ".torrent")
+        let named = root.appendingPathComponent("My Torrent.torrent")
+        try metainfo.data.write(to: generated)
+        try metainfo.data.write(to: named)
+        let link = root.appendingPathComponent(String(repeating: "c", count: 40) + ".torrent")
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: named)
+        let context = TorrentSidecarContext(
+            destinationFolderURL: root, sourceKind: .torrentFile,
+            torrentFingerprint: ManagedTorrentSourceStore.fingerprint(for: metainfo.data),
+            fileLocationURL: nil, payloadURLs: []
+        )
+        let service = TorrentSidecarFileService()
+        service.hideExistingSidecars(for: context)
+        XCTAssertEqual(try generated.resourceValues(forKeys: [.isHiddenKey]).isHidden, true)
+        XCTAssertNotEqual(try named.resourceValues(forKeys: [.isHiddenKey]).isHidden, true)
+        try service.removeExistingSidecars(for: context)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: generated.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: named.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: link.path))
+    }
+
+    func testEmptyTorrentParentsAreRemovedButUnselectedFilesAndDestinationRemain() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let empty = root.appendingPathComponent("Movie/Subtitles")
+        let partial = root.appendingPathComponent("Partial")
+        try FileManager.default.createDirectory(at: empty, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: partial, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let kept = partial.appendingPathComponent("unselected.mkv")
+        try Data("keep".utf8).write(to: kept)
+        let result = DownloadDataRemovalService().movePayloadDataToTrash(
+            destinationFolderPath: root.path,
+            payloadPaths: [empty.appendingPathComponent("removed.srt").path,
+                           partial.appendingPathComponent("removed.mkv").path],
+            removeEmptyParents: true
+        )
+        XCTAssertTrue(result.failures.isEmpty)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent("Movie").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: kept.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: root.path))
+    }
+
     func testExistingDataRecoveryDisablesAutomaticRenaming() {
         let options = Aria2TorrentService.downloadOptions(
             destinationFolderPath: "/tmp/HarborExistingDataTest",
@@ -615,7 +662,7 @@ final class TorrentLifecycleAndStorageTests: XCTestCase {
                 status: .seeding
             )
         )
-        XCTAssertFalse(
+        XCTAssertTrue(
             DownloadCenter.shouldHideRestoredTorrentSidecars(
                 backend: .aria2,
                 status: .completed

@@ -3746,7 +3746,8 @@ final class DownloadCenter {
         if removingData {
             let result = dataRemovalService.movePayloadDataToTrash(
                 destinationFolderPath: item.destinationFolderPath,
-                payloadPaths: payloadPaths(for: item)
+                payloadPaths: payloadPaths(for: item),
+                removeEmptyParents: item.backend == .aria2
             )
             if result.failures.isEmpty == false {
                 applyPartialDataRemovalResult(result, to: item)
@@ -6189,6 +6190,7 @@ final class DownloadCenter {
             || status == .downloading
             || status == .paused
             || status == .seeding
+            || status == .completed
     }
 
     nonisolated static func shouldRepairMetadataOnlyMagnetCompletion(

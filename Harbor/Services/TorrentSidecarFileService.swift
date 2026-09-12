@@ -37,21 +37,19 @@ nonisolated struct TorrentSidecarFileService {
     }
 
     func magnetMetadataURL(for context: TorrentSidecarContext) -> URL? {
-        verifiedMagnetMetadataURL(for: context)
+        verifiedMetadataURLs(for: context).first
     }
 
     func removeMagnetMetadata(for context: TorrentSidecarContext) throws {
-        guard let metadataURL = verifiedMagnetMetadataURL(for: context) else {
-            return
+        for metadataURL in verifiedMetadataURLs(for: context) {
+            try fileManager.removeItem(at: metadataURL)
         }
-
-        try fileManager.removeItem(at: metadataURL)
     }
 
     private func verifiedExistingSidecarURLs(for context: TorrentSidecarContext) -> [URL] {
         var candidates = Set(existingControlFileURLs(for: context))
 
-        if let metadataURL = verifiedMagnetMetadataURL(for: context) {
+        for metadataURL in verifiedMetadataURLs(for: context) {
             candidates.insert(metadataURL)
 
             let metadataControlURL = URL(fileURLWithPath: metadataURL.path + ".aria2")
@@ -93,24 +91,23 @@ nonisolated struct TorrentSidecarFileService {
             .sorted { $0.path < $1.path }
     }
 
-    private func verifiedMagnetMetadataURL(for context: TorrentSidecarContext) -> URL? {
-        guard context.sourceKind == .magnetLink,
-              let fingerprint = ManagedTorrentSourceStore.normalizedInfoHash(context.torrentFingerprint)
-        else {
-            return nil
-        }
+    private func verifiedMetadataURLs(for context: TorrentSidecarContext) -> [URL] {
+        guard let fingerprint = ManagedTorrentSourceStore.normalizedInfoHash(context.torrentFingerprint),
+              let entries = try? fileManager.contentsOfDirectory(
+                at: context.destinationFolderURL,
+                includingPropertiesForKeys: [.isRegularFileKey, .isSymbolicLinkKey]
+              ) else { return [] }
 
-        let metadataURL = context.destinationFolderURL
-            .appendingPathComponent("\(fingerprint).torrent", isDirectory: false)
-            .standardizedFileURL
-        guard isDescendant(metadataURL, of: context.destinationFolderURL.standardizedFileURL),
-              fileManager.fileExists(atPath: metadataURL.path),
-              let data = try? Data(contentsOf: metadataURL, options: .mappedIfSafe),
-              ManagedTorrentSourceStore.fingerprint(for: data) == fingerprint else {
-            return nil
-        }
-
-        return metadataURL
+        return entries.filter { url in
+            // Only generated hash names are support files; preserve user-named torrents.
+            guard url.pathExtension == "torrent",
+                  ManagedTorrentSourceStore.normalizedInfoHash(url.deletingPathExtension().lastPathComponent) != nil,
+                  let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey]),
+                  values.isRegularFile == true, values.isSymbolicLink != true,
+                  let data = try? ManagedTorrentSourceStore.loadTorrentData(at: url, fileManager: fileManager)
+            else { return false }
+            return ManagedTorrentSourceStore.fingerprint(for: data) == fingerprint
+        }.sorted { $0.path < $1.path }
     }
 
     private func isDescendant(_ candidateURL: URL, of directoryURL: URL) -> Bool {
