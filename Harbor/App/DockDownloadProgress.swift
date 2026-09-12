@@ -71,10 +71,10 @@ private final class DockProgressView: NSView {
         icon.draw(in: bounds)
 
         let track = NSRect(
-            x: bounds.width * 0.12,
-            y: bounds.height * 0.1,
-            width: bounds.width * 0.76,
-            height: max(bounds.height * 0.075, 7)
+            x: bounds.width * 0.18,
+            y: bounds.height * 0.14,
+            width: bounds.width * 0.64,
+            height: max(bounds.height * 0.1, 9)
         )
         let radius = track.height / 2
         let trackPath = NSBezierPath(roundedRect: track, xRadius: radius, yRadius: radius)
