@@ -72,15 +72,15 @@ private final class DockProgressView: NSView {
 
         let track = NSRect(
             x: bounds.width * 0.18,
-            y: bounds.height * 0.14,
+            y: bounds.height * 0.18,
             width: bounds.width * 0.64,
-            height: max(bounds.height * 0.1, 9)
+            height: max(bounds.height * 0.12, 11)
         )
         let radius = track.height / 2
         let trackPath = NSBezierPath(roundedRect: track, xRadius: radius, yRadius: radius)
-        NSColor.white.withAlphaComponent(0.92).setFill()
+        NSColor.black.withAlphaComponent(0.48).setFill()
         trackPath.fill()
-        NSColor.black.withAlphaComponent(0.22).setStroke()
+        NSColor.white.withAlphaComponent(0.28).setStroke()
         trackPath.lineWidth = 1
         trackPath.stroke()
 
@@ -105,7 +105,7 @@ private final class DockProgressView: NSView {
         guard fill.width > 0 else { return }
         NSGraphicsContext.saveGraphicsState()
         trackPath.addClip()
-        NSColor.controlAccentColor.setFill()
+        NSColor.systemOrange.setFill()
         fill.fill()
         NSGraphicsContext.restoreGraphicsState()
     }
