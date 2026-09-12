@@ -3,6 +3,7 @@ import AppKit
 @MainActor
 final class HarborAppDelegate: NSObject, NSApplicationDelegate {
     weak var center: DownloadCenter?
+    let dockProgress = DockDownloadProgress()
     private var isTerminating = false
 
     func applicationShouldOpenUntitledFile(_ sender: NSApplication) -> Bool {

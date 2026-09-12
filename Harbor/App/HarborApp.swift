@@ -35,6 +35,7 @@ struct HarborApp: App {
                     }
 
                     center.installExternalOpenHandlerIfNeeded()
+                    appDelegate.dockProgress.start(center: center)
                     await center.initializeIfNeeded()
                 }
         }

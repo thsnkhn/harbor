@@ -42,7 +42,7 @@ struct DownloadsContentView: View {
                     TableColumn("Transfer", value: \.progress) { item in
                         DownloadTransferCell(item: item)
                     }
-                    .width(190)
+                    .width(min: 190, ideal: 280)
                     .customizationID("transfer")
                     .defaultVisibility(.visible)
 
@@ -213,11 +213,15 @@ private struct DownloadTransferCell: View {
     }
 
     private var transferSummary: String {
-        guard item.status == .seeding else {
-            return item.progressText
+        if item.status == .seeding {
+            return "↑ \(item.uploadedText) • \(item.shareRatioText) ratio"
         }
 
-        return "↑ \(item.uploadedText) • \(item.shareRatioText) ratio"
+        if item.status == .downloading, let eta = item.etaText {
+            return String(localized: "\(item.progressText) • ETA \(eta)", comment: "Download progress followed by estimated time remaining")
+        }
+
+        return item.progressText
     }
 
     @ViewBuilder
