@@ -614,6 +614,10 @@ final class DownloadItem: Identifiable {
             return fileLocationURL.lastPathComponent
         }
 
+        if let preferredFilename, preferredFilename.isEmpty == false {
+            return preferredFilename
+        }
+
         if let metadataName, metadataName.isEmpty == false {
             return metadataName
         }
@@ -622,10 +626,6 @@ final class DownloadItem: Identifiable {
            let title = mediaMetadata?.title,
            title.isEmpty == false {
             return title
-        }
-
-        if let preferredFilename, preferredFilename.isEmpty == false {
-            return preferredFilename
         }
 
         if sourceKind == .magnetLink {

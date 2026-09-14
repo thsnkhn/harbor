@@ -35,7 +35,7 @@ enum DownloadSourceKind: String, Codable, CaseIterable, Identifiable, Sendable {
     }
 
     var supportsCustomFilename: Bool {
-        self == .directURL
+        self == .directURL || self == .mediaURL
     }
 
     var usesAria2: Bool {

@@ -2602,7 +2602,9 @@ final class DownloadCenter {
            let customFilename = request.customFilename?
             .trimmingCharacters(in: .whitespacesAndNewlines),
            customFilename.isEmpty == false {
-            preferredFilename = destinationResolver.resolvedFilename(
+            preferredFilename = request.sourceKind == .mediaURL
+                ? destinationResolver.sanitize(customFilename)
+                : destinationResolver.resolvedFilename(
                 custom: customFilename,
                 responseSuggestedFilename: nil,
                 sourceURL: request.sourceURL
@@ -5132,6 +5134,7 @@ final class DownloadCenter {
                 destinationFolder: readyItem.destinationFolderURL,
                 metadata: validatedMetadata,
                 formatPreference: requestedFormat,
+                customFilename: readyItem.preferredFilename,
                 outputConflictIdentifier: readyItem.mediaOutputConflictIdentifier,
                 speedLimitBytesPerSecond: effectiveMediaDownloadLimit(for: readyItem)
             )

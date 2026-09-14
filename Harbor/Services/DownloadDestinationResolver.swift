@@ -164,7 +164,7 @@ struct DownloadDestinationResolver: @unchecked Sendable {
         }
     }
 
-    private nonisolated func sanitize(_ filename: String) -> String {
+    nonisolated func sanitize(_ filename: String) -> String {
         let replaced = filename
             .replacingOccurrences(of: "/", with: "-")
             .replacingOccurrences(of: ":", with: "-")

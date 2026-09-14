@@ -270,6 +270,7 @@ actor MediaDownloadService {
         destinationFolder: URL,
         metadata: MediaDownloadMetadata?,
         formatPreference: MediaDownloadFormatPreference,
+        customFilename: String? = nil,
         outputConflictIdentifier: UUID? = nil,
         speedLimitBytesPerSecond: Int64? = nil
     ) async throws -> Int32 {
@@ -391,6 +392,7 @@ actor MediaDownloadService {
             temporaryFolder: temporaryFolder,
             metadata: metadata,
             formatPreference: formatPreference,
+            customFilename: customFilename,
             outputConflictIdentifier: effectiveOutputIdentifier,
             completionReceiptURL: finalPathReceiptURL(id: id),
             speedLimitBytesPerSecond: speedLimitBytesPerSecond
@@ -1220,16 +1222,23 @@ actor MediaDownloadService {
         temporaryFolder: URL,
         metadata: MediaDownloadMetadata?,
         formatPreference: MediaDownloadFormatPreference,
+        customFilename: String? = nil,
         outputConflictIdentifier: UUID? = nil,
         completionReceiptURL: URL,
         speedLimitBytesPerSecond: Int64?
     ) throws -> [String] {
-        let outputTemplate: String
-        if let outputConflictIdentifier {
-            outputTemplate = "%(title).180B [%(id)s] [Harbor \(outputConflictIdentifier.uuidString)].%(ext)s"
-        } else {
-            outputTemplate = "%(title).180B [%(id)s].%(ext)s"
+        var outputStem = "%(title).180B [%(id)s]"
+        if let customFilename,
+           !customFilename.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            outputStem = DownloadDestinationResolver().sanitize(customFilename).replacingOccurrences(of: "%", with: "%%")
+            if metadata?.isCollection == true {
+                outputStem += " [%(id)s]"
+            }
         }
+        if let outputConflictIdentifier {
+            outputStem += " [Harbor \(outputConflictIdentifier.uuidString)]"
+        }
+        let outputTemplate = outputStem + ".%(ext)s"
         var arguments = [
             "--ignore-config",
             "--no-cache-dir",

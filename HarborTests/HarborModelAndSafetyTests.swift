@@ -345,6 +345,23 @@ final class HarborModelAndSafetyTests: XCTestCase {
             fileURLWithPath: "/tmp/media%owned/final-paths.jsonl"
         )
 
+        let customArguments = try MediaDownloadService.downloadArguments(
+            runtime: runtime,
+            sourceURL: sourceURL,
+            destinationFolder: destinationURL,
+            temporaryFolder: temporaryURL,
+            metadata: nil,
+            formatPreference: .bestAvailable,
+            customFilename: " My/video: 100% %(title)s ",
+            completionReceiptURL: completionReceiptURL,
+            speedLimitBytesPerSecond: nil
+        )
+        let customOutputIndex = try XCTUnwrap(customArguments.firstIndex(of: "--output"))
+        XCTAssertEqual(customArguments[customOutputIndex + 1], "My-video- 100%% %%(title)s.%(ext)s")
+        XCTAssertTrue(DownloadSourceKind.mediaURL.supportsCustomFilename)
+        XCTAssertFalse(DownloadSourceKind.torrentFile.supportsCustomFilename)
+        XCTAssertFalse(DownloadSourceKind.magnetLink.supportsCustomFilename)
+
         let limitedArguments = try MediaDownloadService.downloadArguments(
             runtime: runtime,
             sourceURL: sourceURL,

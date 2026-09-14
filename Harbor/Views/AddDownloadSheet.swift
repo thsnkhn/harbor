@@ -36,6 +36,7 @@ struct AddDownloadSheet: View {
     @State private var destinationPath: String
     @State private var hasCustomizedDestination = false
     @State private var shouldStartImmediately: Bool
+    @State private var customFilename = ""
     @State private var requestHeaders: [RequestHeader] = []
     @State private var isRequestHeadersEditorPresented = false
     @State private var validationMessage: String?
@@ -127,6 +128,14 @@ struct AddDownloadSheet: View {
                             .accessibilityIdentifier(HarborAccessibility.addChooseTorrent)
                         }
                     }
+                }
+
+                if entryMode == .linkOrMagnet, !isBatchEntry,
+                   let url = parsedLinkURL,
+                   DownloadSourceKind.detect(from: url) == .directURL {
+                    TextField("File name (optional)", text: $customFilename)
+                        .help("Leave blank to use the original name. For media, enter a name without an extension; the selected format supplies it.")
+                        .accessibilityIdentifier("addCustomFilename")
                 }
 
                 destinationPicker
@@ -863,7 +872,7 @@ struct AddDownloadSheet: View {
         let request = AddDownloadRequest(
             sourceKind: sourceKind,
             sourceURL: sourceURL,
-            customFilename: nil,
+            customFilename: sourceKind.supportsCustomFilename ? customFilename : nil,
             destinationFolder: folderURL,
             shouldStartImmediately: shouldStartImmediately,
             requestHeaders: requestHeaders,
