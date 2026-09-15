@@ -13,7 +13,7 @@ struct TorrentContentsPreview: Equatable, Sendable {
     let name: String
     let files: [TorrentFileDescriptor]
     let totalBytes: Int64
-    let metainfoData: Data
+    let metainfoData: Data?
     let infoHash: String
 }
 

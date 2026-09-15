@@ -332,7 +332,7 @@ final class TorrentLifecycleAndStorageTests: XCTestCase {
         )
 
         XCTAssertEqual(options["check-integrity"], "true")
-        XCTAssertEqual(options["bt-hash-check-seed"], "true")
+        XCTAssertNil(options["bt-hash-check-seed"])
         XCTAssertEqual(options["allow-overwrite"], "false")
         XCTAssertEqual(options["auto-file-renaming"], "false")
     }

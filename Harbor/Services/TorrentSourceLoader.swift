@@ -3,7 +3,8 @@ import Foundation
 nonisolated enum TorrentSourceLoader {
     static func fetch(
         from remoteURL: URL,
-        requestHeaders: [RequestHeader]
+        requestHeaders: [RequestHeader],
+        proxySettings: NetworkProxySettings = .system
     ) async throws -> Data {
         var request = URLRequest(url: remoteURL)
         requestHeaders.apply(to: &request)
@@ -12,6 +13,7 @@ nonisolated enum TorrentSourceLoader {
         configuration.waitsForConnectivity = true
         configuration.timeoutIntervalForRequest = 30
         configuration.timeoutIntervalForResource = 120
+        try proxySettings.apply(to: configuration)
 
         let redirectDelegate = TorrentSourceRedirectDelegate(
             sourceURL: remoteURL,
@@ -26,7 +28,13 @@ nonisolated enum TorrentSourceLoader {
             session.finishTasksAndInvalidate()
         }
 
-        let (temporaryURL, response) = try await session.download(for: request)
+        let temporaryURL: URL
+        let response: URLResponse
+        do {
+            (temporaryURL, response) = try await session.download(for: request)
+        } catch {
+            throw proxySettings.downloadError(from: error)
+        }
         if let response = response as? HTTPURLResponse,
            (200 ... 299).contains(response.statusCode) == false {
             throw TorrentSourceLoadingError.httpStatus(response.statusCode)

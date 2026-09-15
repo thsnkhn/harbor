@@ -228,6 +228,7 @@ final class DownloadCoordinator: NSObject, @unchecked Sendable {
         let attemptIdentifier: UUID
         let sourceURL: URL
         let requestHeaders: [RequestHeader]
+        let proxySettings: NetworkProxySettings
         let session: URLSession
         let task: URLSessionTask
         var state: OwnedPartialState
@@ -258,6 +259,7 @@ final class DownloadCoordinator: NSObject, @unchecked Sendable {
     private var completionPublications: [UUID: CompletionPublicationState] = [:]
     private var completedPublicationPauseResults: [UUID: DirectDownloadPauseResult] = [:]
     private var transferSettings: DownloadTransferSettings
+    private var proxySettings: NetworkProxySettings
 
     init(
         transferSettings: DownloadTransferSettings = .default,
@@ -266,11 +268,13 @@ final class DownloadCoordinator: NSObject, @unchecked Sendable {
         recoveryDirectoryURL: URL? = nil,
         temporaryDirectory: URL? = nil,
         completedHandoffStore: CompletedDownloadHandoffStore? = nil,
-        sessionConfiguration: URLSessionConfiguration = .default
+        sessionConfiguration: URLSessionConfiguration = .default,
+        proxySettings: NetworkProxySettings = .system
     ) {
         self.eventHandler = eventHandler
         self.fileManager = fileManager
         self.transferSettings = transferSettings
+        self.proxySettings = proxySettings
         self.ownedTemporaryDirectory = temporaryDirectory
             ?? fileManager.temporaryDirectory
                 .appendingPathComponent("HarborDownloads", isDirectory: true)
@@ -306,6 +310,12 @@ final class DownloadCoordinator: NSObject, @unchecked Sendable {
             return releaseThrottledTasksLocked()
         }
         tasksToResume.forEach { $0.resume() }
+    }
+
+    func updateProxySettings(_ proxySettings: NetworkProxySettings) {
+        stateLock.withLock {
+            self.proxySettings = proxySettings
+        }
     }
 
     func updateSpeedLimitOverride(
@@ -358,7 +368,8 @@ final class DownloadCoordinator: NSObject, @unchecked Sendable {
             }
         }
 
-        let session = makeSession()
+        let configuredSession = try makeSession()
+        let session = configuredSession.session
         defer {
             if installedContext == false {
                 session.invalidateAndCancel()
@@ -381,6 +392,7 @@ final class DownloadCoordinator: NSObject, @unchecked Sendable {
             attemptIdentifier: attemptIdentifier,
             sourceURL: sourceURL,
             requestHeaders: requestHeaders,
+            proxySettings: configuredSession.proxySettings,
             session: session,
             task: task,
             state: OwnedPartialState(
@@ -699,23 +711,33 @@ final class DownloadCoordinator: NSObject, @unchecked Sendable {
         }
     }
 
-    private func makeSession() -> URLSession {
-        let perDownloadConnectionCount = stateLock.withLock {
-            transferSettings.perDownloadConnectionCount
+    private func makeSession() throws -> (
+        session: URLSession,
+        proxySettings: NetworkProxySettings
+    ) {
+        let sessionSettings = stateLock.withLock {
+            (
+                connections: transferSettings.perDownloadConnectionCount,
+                proxy: proxySettings
+            )
         }
 
         let configuration = baseSessionConfiguration.copy() as! URLSessionConfiguration
         configuration.waitsForConnectivity = true
         configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
         configuration.urlCache = nil
-        configuration.httpMaximumConnectionsPerHost = perDownloadConnectionCount
+        configuration.httpMaximumConnectionsPerHost = sessionSettings.connections
         configuration.allowsConstrainedNetworkAccess = true
         configuration.allowsExpensiveNetworkAccess = true
+        try sessionSettings.proxy.apply(to: configuration)
 
-        return URLSession(
-            configuration: configuration,
-            delegate: self,
-            delegateQueue: delegateQueue
+        return (
+            URLSession(
+                configuration: configuration,
+                delegate: self,
+                delegateQueue: delegateQueue
+            ),
+            sessionSettings.proxy
         )
     }
 
@@ -1509,7 +1531,7 @@ extension DownloadCoordinator: URLSessionDataDelegate {
                     id: context.downloadID,
                     attemptIdentifier: context.attemptIdentifier,
                     failure: DirectDownloadFailure(
-                        error: nsError,
+                        error: context.proxySettings.downloadError(from: nsError),
                         resumeData: nil,
                         wasResuming: context.state.resumeOffset > 0,
                         recoverableBytes: didPreserveRecovery

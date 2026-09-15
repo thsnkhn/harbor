@@ -183,8 +183,8 @@ resign_exported_app() {
         codesign --force --sign "$SIGN_IDENTITY" --options runtime --timestamp {} \;
     fi
 
-    if [ -f "$APP_PATH/Contents/Resources/TorrentRuntime/$architecture/bin/aria2c" ]; then
-      codesign --force --sign "$SIGN_IDENTITY" --options runtime --timestamp "$APP_PATH/Contents/Resources/TorrentRuntime/$architecture/bin/aria2c"
+    if [ -f "$APP_PATH/Contents/Resources/TorrentRuntime/$architecture/bin/aria2-next" ]; then
+      codesign --force --sign "$SIGN_IDENTITY" --options runtime --timestamp "$APP_PATH/Contents/Resources/TorrentRuntime/$architecture/bin/aria2-next"
     fi
   done
 
@@ -192,11 +192,11 @@ resign_exported_app() {
     if [ -f "$APP_PATH/Contents/Resources/MediaRuntime/$architecture/bin/deno" ]; then
       codesign --force --sign "$SIGN_IDENTITY" --options runtime --timestamp "$APP_PATH/Contents/Resources/MediaRuntime/$architecture/bin/deno"
     fi
-
-    if [ -f "$APP_PATH/Contents/Resources/MediaRuntime/$architecture/bin/yt-dlp" ]; then
-      codesign --force --sign "$SIGN_IDENTITY" --options runtime --timestamp --entitlements "$YT_DLP_ENTITLEMENTS" "$APP_PATH/Contents/Resources/MediaRuntime/$architecture/bin/yt-dlp"
-    fi
   done
+
+  if [ -f "$APP_PATH/Contents/Resources/MediaRuntime/bin/yt-dlp" ]; then
+    codesign --force --sign "$SIGN_IDENTITY" --options runtime --timestamp --entitlements "$YT_DLP_ENTITLEMENTS" "$APP_PATH/Contents/Resources/MediaRuntime/bin/yt-dlp"
+  fi
 
   # TODO: keep Sparkle's nested signing explicit until Xcode export stops corrupting Installer.xpc.
   codesign --force --sign "$SIGN_IDENTITY" --options runtime --timestamp "$SPARKLE_VERSION_DIR/XPCServices/Installer.xpc"

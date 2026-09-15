@@ -13,7 +13,7 @@ struct Aria2BinaryResolver {
                 case .bundled:
                     "Bundled with Harbor"
                 case .environmentOverride:
-                    "ARIA2C_PATH override"
+                    "ARIA2_NEXT_PATH override"
                 case .standardLocation:
                     "System installation"
                 case .pathLookup:
@@ -48,14 +48,14 @@ struct Aria2BinaryResolver {
         }
 
         nonisolated private static let defaultCandidatePaths = [
-            "/opt/homebrew/bin/aria2c",
-            "/usr/local/bin/aria2c",
-            "/opt/local/bin/aria2c"
+            "/opt/homebrew/bin/aria2-next",
+            "/usr/local/bin/aria2-next",
+            "/opt/local/bin/aria2-next"
         ]
 
     }
 
-    nonisolated static let installHint = "Harbor couldn’t find a compatible bundled torrent engine. Reinstall the app, or set `ARIA2C_PATH` to a portable `aria2c` runtime."
+    nonisolated static let installHint = "Harbor couldn’t find Aria2 Next. Reinstall the app, or set `ARIA2_NEXT_PATH` to an Aria2 Next executable."
 
     nonisolated static func resolveBinaryURL() -> URL? {
         resolveBinary()?.url
@@ -66,7 +66,7 @@ struct Aria2BinaryResolver {
             return bundledBinary
         }
 
-        if let path = context.environment["ARIA2C_PATH"],
+        if let path = context.environment["ARIA2_NEXT_PATH"],
            context.fileManager.isExecutableFile(atPath: path) {
             return Resolution(
                 url: URL(fileURLWithPath: path),
@@ -98,11 +98,11 @@ struct Aria2BinaryResolver {
                     .appendingPathComponent("TorrentRuntime", isDirectory: true)
                     .appendingPathComponent(HarborApplicationSupport.architectureName, isDirectory: true)
                     .appendingPathComponent("bin", isDirectory: true)
-                    .appendingPathComponent("aria2c", isDirectory: false),
+                    .appendingPathComponent("aria2-next", isDirectory: false),
                 root
                     .appendingPathComponent("TorrentRuntime", isDirectory: true)
                     .appendingPathComponent("bin", isDirectory: true)
-                    .appendingPathComponent("aria2c", isDirectory: false)
+                    .appendingPathComponent("aria2-next", isDirectory: false)
             ]
 
             for binaryURL in candidateURLs where context.fileManager.isExecutableFile(atPath: binaryURL.path) {
@@ -117,7 +117,7 @@ struct Aria2BinaryResolver {
         let process = Process()
         let outputPipe = Pipe()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/which")
-        process.arguments = ["aria2c"]
+        process.arguments = ["aria2-next"]
         process.standardOutput = outputPipe
         process.standardError = Pipe()
 

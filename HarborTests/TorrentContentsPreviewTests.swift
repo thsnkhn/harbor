@@ -111,6 +111,30 @@ final class TorrentContentsPreviewTests: XCTestCase {
         XCTAssertNil(allFileOptions["select-file"])
     }
 
+    func testBuildsMagnetPreviewFromAria2NextStatusWithoutMetainfoSidecar() throws {
+        let payload = try JSONDecoder().decode(
+            Aria2NextMagnetStatus.self,
+            from: Data(
+                #"{"status":"paused","infoHash":"0123456789abcdef0123456789abcdef01234567","errorMessage":null,"files":[{"index":"1","path":"/tmp/preview/Release/Docs/readme.txt","length":"7"},{"index":"2","path":"/tmp/preview/Release/video.mp4","length":"15"}],"bittorrent":{"info":{"name":"Release"},"infoHashV1":"0123456789abcdef0123456789abcdef01234567","infoHashV2":null}}"#.utf8
+            )
+        )
+
+        let preview = try XCTUnwrap(
+            payload.preview(relativeTo: URL(fileURLWithPath: "/tmp/preview", isDirectory: true))
+        )
+
+        XCTAssertEqual(preview.name, "Release")
+        XCTAssertEqual(preview.totalBytes, 22)
+        XCTAssertEqual(
+            preview.files,
+            [
+                TorrentFileDescriptor(index: 1, path: "Docs/readme.txt", byteCount: 7),
+                TorrentFileDescriptor(index: 2, path: "video.mp4", byteCount: 15)
+            ]
+        )
+        XCTAssertNil(preview.metainfoData)
+    }
+
     @MainActor
     func testPartialSelectionPersistsAndLegacyRecordDefaultsToAllFiles() throws {
         let selection = TorrentFileSelection(
