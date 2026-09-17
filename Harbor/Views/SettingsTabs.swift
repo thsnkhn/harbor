@@ -53,6 +53,23 @@ struct DownloadsSettingsTab: View {
                     reveal: settings.revealTorrentDestination
                 )
             }
+
+            Section("Staging") {
+                DestinationFolderRow(
+                    title: "In-Progress Files",
+                    path: settings.downloadStagingRootURL.path,
+                    choose: settings.chooseDownloadStaging,
+                    reveal: settings.revealDownloadStaging
+                )
+
+                if settings.usesCustomDownloadStaging {
+                    Button("Use Default Location", action: settings.useDefaultDownloadStaging)
+                }
+
+                Text("Harbor writes downloads here before moving them to a save location. A folder on the same volume as the save location avoids copying every finished file between volumes. Restart Harbor to apply a change.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
         }
         .formStyle(.grouped)
     }

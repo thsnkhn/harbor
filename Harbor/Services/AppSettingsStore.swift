@@ -104,6 +104,7 @@ final class AppSettingsStore {
         static let perDownloadConnectionCount = "perDownloadConnectionCount"
         static let networkBindingSelection = "torrentNetworkBindingSelection"
         static let networkBindingDisplayName = "torrentNetworkBindingDisplayName"
+        static let downloadStagingPath = "downloadStagingPath"
     }
 
     static let maxConcurrentDownloadsRange = 1 ... 16
@@ -121,6 +122,13 @@ final class AppSettingsStore {
     var defaultDestinationPath: String {
         didSet {
             userDefaults.set(defaultDestinationPath, forKey: Keys.defaultDestinationPath)
+        }
+    }
+
+    /// Empty means the default application-support location.
+    var downloadStagingPath: String {
+        didSet {
+            userDefaults.set(downloadStagingPath, forKey: Keys.downloadStagingPath)
         }
     }
 
@@ -332,6 +340,7 @@ final class AppSettingsStore {
             ?? URL(fileURLWithPath: regularDestinationPath, isDirectory: true)
                 .appendingPathComponent("Torrents", isDirectory: true)
                 .path
+        self.downloadStagingPath = userDefaults.string(forKey: Keys.downloadStagingPath) ?? ""
         self.torrentWatchFolderPath = userDefaults.string(forKey: Keys.torrentWatchFolderPath)
             ?? defaultDownloadsPath
         self.torrentWatchFolderEnabled = userDefaults.bool(forKey: Keys.torrentWatchFolderEnabled)
@@ -459,6 +468,29 @@ final class AppSettingsStore {
         URL(fileURLWithPath: torrentWatchFolderPath, isDirectory: true)
     }
 
+    /// Root for in-progress partials and completed-download handoff packages.
+    /// Keeping it on the same volume as the save location makes final placement
+    /// a rename instead of a cross-volume copy of every finished file.
+    var downloadStagingRootURL: URL {
+        downloadStagingPath.isEmpty
+            ? HarborApplicationSupport.directoryURL()
+            : URL(fileURLWithPath: downloadStagingPath, isDirectory: true)
+    }
+
+    var usesCustomDownloadStaging: Bool {
+        downloadStagingPath.isEmpty == false
+    }
+
+    var directDownloadRecoveryURL: URL {
+        downloadStagingRootURL
+            .appendingPathComponent("DirectDownloadRecovery", isDirectory: true)
+    }
+
+    var completedHandoffStagingURL: URL {
+        downloadStagingRootURL
+            .appendingPathComponent("CompletedDownloadHandoffs", isDirectory: true)
+    }
+
     var transferSettings: DownloadTransferSettings {
         let customSettings = DownloadTransferSettings(
             maxConcurrentDownloads: Self.clamped(maxConcurrentDownloads, to: Self.maxConcurrentDownloadsRange),
@@ -537,6 +569,22 @@ final class AppSettingsStore {
 
     func revealTorrentWatchFolder() {
         NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: torrentWatchFolderPath)
+    }
+
+    func chooseDownloadStaging() {
+        guard let folder = FolderSelectionService.chooseFolder(startingAt: downloadStagingRootURL) else {
+            return
+        }
+
+        downloadStagingPath = folder.path
+    }
+
+    func revealDownloadStaging() {
+        NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: downloadStagingRootURL.path)
+    }
+
+    func useDefaultDownloadStaging() {
+        downloadStagingPath = ""
     }
 
     func updateTorrentWatchFolderStatus(_ status: TorrentWatchFolderStatus) {
