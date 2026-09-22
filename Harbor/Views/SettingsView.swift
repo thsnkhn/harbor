@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct SettingsView: View {
+    // TODO: Add a Tags settings tab when automatic tagging rules are introduced.
     let settings: AppSettingsStore
     @ObservedObject var updater: AppUpdater
 
