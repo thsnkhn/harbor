@@ -3,12 +3,25 @@
     <channel>
         <title>Harbor</title>
         <item>
+            <title>1.8.0</title>
+            <pubDate>Tue, 22 Sep 2026 13:35:21 +0500</pubDate>
+            <sparkle:version>39</sparkle:version>
+            <sparkle:shortVersionString>1.8.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.6</sparkle:minimumSystemVersion>
+            <sparkle:releaseNotesLink>https://thsnkhn.github.io/harbor/updates/Harbor-1.8.0.md</sparkle:releaseNotesLink>
+            <enclosure url="https://github.com/thsnkhn/harbor/releases/download/v1.8.0/Harbor-1.8.0.dmg" length="224849827" type="application/octet-stream" sparkle:edSignature="vSFsgECLiSoZaDzoKNuNJuvIVMF180jY2VGH6aeXIRuv2IqZINWGlFKp7nXRk3/R2/020aMoMNiNmzlvgmfqDw=="/>
+            <sparkle:deltas>
+                <enclosure url="https://github.com/thsnkhn/harbor/releases/download/v1.8.0/Harbor39-38.delta" sparkle:deltaFrom="38" length="110294" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="QODZkRcb+eGzg9HbeIyWvXuYt6/mNk4goreeD3f7dbe7yelQHraOh88OA5OvrCHsHDQpKQznzLmYTK0x+/ySCA=="/>
+                <enclosure url="https://github.com/thsnkhn/harbor/releases/download/v1.8.0/Harbor39-37.delta" sparkle:deltaFrom="37" length="781434" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="LhI1gLmCuLSvYKPrC+ejQXAmqPvx3OpvdUPJyDQDoNzzwZtJ2R61VA2jISTbfotH5SfeZmSbKDZPOayQv3EHCA=="/>
+                <enclosure url="https://github.com/thsnkhn/harbor/releases/download/v1.8.0/Harbor39-36.delta" sparkle:deltaFrom="36" length="48608846" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="w8PHOha5cQCVJkspEGHfhDtv696aO4/cepQnHSg95+PjSsVD6G7DM44l3muvequd+94yw/wmvw8ByF+zPu1bBQ=="/>
+            </sparkle:deltas>
+        </item>
+        <item>
             <title>1.7.9</title>
             <pubDate>Tue, 22 Sep 2026 13:22:03 +0500</pubDate>
             <sparkle:version>38</sparkle:version>
             <sparkle:shortVersionString>1.7.9</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>15.6</sparkle:minimumSystemVersion>
-            <sparkle:releaseNotesLink>https://thsnkhn.github.io/harbor/updates/Harbor-1.7.9.md</sparkle:releaseNotesLink>
             <enclosure url="https://github.com/thsnkhn/harbor/releases/download/v1.7.9/Harbor-1.7.9.dmg" length="224850039" type="application/octet-stream" sparkle:edSignature="v5OBqso3P1LwyFANXOrZbEyjXfM+Eir2qZGINUQu2xvHG2IJ9sMTeu4Ednz0NsEf0HFKiP84VFu0MPoYV3MOCg=="/>
             <sparkle:deltas>
                 <enclosure url="https://github.com/thsnkhn/harbor/releases/download/v1.7.9/Harbor38-37.delta" sparkle:deltaFrom="37" length="781582" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="Q5rQd/5u/bQ7SQlhtoyGLWkTZ9DIhMahEbWb74slNFrQbsYYnOYZtYRVUQhcpO+gaA2Aigm41biPr1E22EEMBQ=="/>
@@ -40,19 +53,6 @@
                 <enclosure url="https://github.com/thsnkhn/harbor/releases/download/v1.7.7/Harbor36-35.delta" sparkle:deltaFrom="35" length="52492838" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="LfsQBa9LUSvCUCHbvD+0V18QD/w+z80zh7hcW/lqg0rA5LudxHm6scxCgZP5CBo2RkHfLQBsu09+M/4S9QZ0Cg=="/>
                 <enclosure url="https://github.com/thsnkhn/harbor/releases/download/v1.7.7/Harbor36-34.delta" sparkle:deltaFrom="34" length="52910082" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="qmLb3gIzY/UCfgX8PfSwnhZIQekr0z2gOlwhaYJncVXQmMTyDmmgyWh0Izz6b7dkdstDwnKGmNBoNnd7bU72CQ=="/>
                 <enclosure url="https://github.com/thsnkhn/harbor/releases/download/v1.7.7/Harbor36-33.delta" sparkle:deltaFrom="33" length="55468606" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="C0u4wXm688BnPaJPhF6sjtLzg9X8sXitEOw5i5wRbSeJdNAl/TiL5tBxBJhcuylgAIRSfwjZvbHkUAM9qPWPCg=="/>
-            </sparkle:deltas>
-        </item>
-        <item>
-            <title>1.7.6</title>
-            <pubDate>Mon, 14 Sep 2026 19:02:51 +0500</pubDate>
-            <sparkle:version>35</sparkle:version>
-            <sparkle:shortVersionString>1.7.6</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>15.6</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/thsnkhn/harbor/releases/download/v1.7.6/Harbor-1.7.6.dmg" length="271231568" type="application/octet-stream" sparkle:edSignature="7Eosf4MxcYZ7QIg/gJB+mi9+AklbgrSyA2d0QVk+MDQEJS/KKPYgzpSXfjuo+Rf6TjPDf4Po9DqJRtJ+EwFYDg=="/>
-            <sparkle:deltas>
-                <enclosure url="https://github.com/thsnkhn/harbor/releases/download/v1.7.6/Harbor35-34.delta" sparkle:deltaFrom="34" length="560446" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="a0DPQrq1EppIuQXgxP8yX5QLiCxlLKPMF1M1QpotUlUwXlTzBTbccjK0MVwM5tRG8FblMuZ5RiTZG239OEVoBw=="/>
-                <enclosure url="https://github.com/thsnkhn/harbor/releases/download/v1.7.6/Harbor35-33.delta" sparkle:deltaFrom="33" length="3117286" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="4Q8uq8g099sC3G3v2BJOl3AxZo7UELqMP/L/NiUum4bD5PODs4Ozs8VjW5l5CJvKbuW++sf/vfTP5Lyq2C0FAQ=="/>
-                <enclosure url="https://github.com/thsnkhn/harbor/releases/download/v1.7.6/Harbor35-32.delta" sparkle:deltaFrom="32" length="3128546" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="FhjxrL0tWtXQhdCw6cQZfjLN1q5o3FMdQhyPd7QfQaa6h7BJ3MBR9t+FWKtHITQhpWzRRo8aCN6ZjhBRdXagDg=="/>
             </sparkle:deltas>
         </item>
     </channel>
