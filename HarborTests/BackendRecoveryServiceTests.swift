@@ -4,9 +4,49 @@ import XCTest
 @testable import Harbor
 
 extension HarborModelAndSafetyTests {
-    func testBundledAriaDaemonPersistsOwnershipAfterLaunch() async throws {
+    func testPeerBlocklistSurvivesTorrentDaemonRestart() async throws {
         guard Aria2BinaryResolver.resolveBinaryURL() != nil else {
-            throw XCTSkip("The bundled aria2 runtime is not available in this test build.")
+            throw XCTSkip("The bundled Aria2 Next runtime is not available in this test build.")
+        }
+
+        let fileManager = FileManager.default
+        let applicationSupportURL = fileManager.temporaryDirectory
+            .appendingPathComponent("HarborBlocklistRestartTests-\(UUID().uuidString)", isDirectory: true)
+        let environmentKey = "HARBOR_APPLICATION_SUPPORT_DIR"
+        let previousValue = getenv(environmentKey).map { String(cString: $0) }
+        defer {
+            if let previousValue {
+                setenv(environmentKey, previousValue, 1)
+            } else {
+                unsetenv(environmentKey)
+            }
+            try? fileManager.removeItem(at: applicationSupportURL)
+        }
+        setenv(environmentKey, applicationSupportURL.path, 1)
+
+        let service = Aria2TorrentService()
+        let applied = try await service.setPeerBlocklist(["192.0.2.1"])
+        XCTAssertEqual(applied.ruleCount, 1)
+
+        await service.setNetworkBinding(
+            .bound(
+                displayName: "Loopback",
+                binding: ResolvedNetworkBinding(
+                    interfaceName: "lo0",
+                    ipv4Address: "127.0.0.1"
+                )
+            )
+        )
+        let cleared = try await service.setPeerBlocklist([])
+        try await service.shutdown()
+
+        XCTAssertEqual(cleared.ruleCount, 0)
+        XCTAssertEqual(cleared.revision, 2)
+    }
+
+    func testBundledAriaNextDaemonMigratesLegacySessionAndPersistsOwnership() async throws {
+        guard Aria2BinaryResolver.resolveBinaryURL() != nil else {
+            throw XCTSkip("The bundled Aria2 Next runtime is not available in this test build.")
         }
 
         let fileManager = FileManager.default
@@ -24,11 +64,23 @@ extension HarborModelAndSafetyTests {
         }
         setenv(environmentKey, applicationSupportURL.path, 1)
 
+        let harborSupportURL = applicationSupportURL
+            .appendingPathComponent("Harbor", isDirectory: true)
+        try fileManager.createDirectory(at: harborSupportURL, withIntermediateDirectories: true)
+        let legacySessionURL = harborSupportURL.appendingPathComponent("aria2.session")
+        let legacySession = """
+        magnet:?xt=urn:btih:0123456789abcdef0123456789abcdef01234567
+         gid=1234567890abcdef
+         pause=true
+
+        """
+        try Data(legacySession.utf8).write(to: legacySessionURL)
+
         let service = Aria2TorrentService()
         var startupError: Error?
         do {
             let knownGIDs = try await service.allKnownGIDs()
-            XCTAssertTrue(knownGIDs.isEmpty)
+            XCTAssertEqual(knownGIDs, Set(["1234567890abcdef"]))
         } catch {
             startupError = error
         }
@@ -37,6 +89,20 @@ extension HarborModelAndSafetyTests {
         if let startupError {
             throw startupError
         }
+        XCTAssertEqual(try Data(contentsOf: legacySessionURL), Data(legacySession.utf8))
+        XCTAssertTrue(
+            fileManager.fileExists(
+                atPath: harborSupportURL.appendingPathComponent("aria2-next.session").path
+            )
+        )
+        var isStateDirectory: ObjCBool = false
+        XCTAssertTrue(
+            fileManager.fileExists(
+                atPath: harborSupportURL.appendingPathComponent("aria2-next-state").path,
+                isDirectory: &isStateDirectory
+            )
+        )
+        XCTAssertTrue(isStateDirectory.boolValue)
         XCTAssertFalse(
             fileManager.fileExists(
                 atPath: applicationSupportURL

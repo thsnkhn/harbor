@@ -36,12 +36,18 @@ ensure_yt_dlp_download() {
   fi
 }
 
-copy_yt_dlp() {
-  local destination="$1"
+stage_yt_dlp() {
+  local destination="${runtime_dir}/bin"
   ensure_yt_dlp_download
+  mkdir -p "$destination"
   ditto "${tmp_dir}/yt-dlp" "${destination}/yt-dlp"
   chmod 755 "${destination}/yt-dlp"
   codesign --force --sign - "${destination}/yt-dlp"
+}
+
+link_yt_dlp() {
+  local destination="$1"
+  ln -s "../../bin/yt-dlp" "${destination}/yt-dlp"
 }
 
 copy_deno() {
@@ -161,7 +167,7 @@ stage_arm64_runtime() {
   echo "Staging arm64 media runtime from ${arm64_ffmpeg_path}"
   rm -rf "${runtime_dir:?}/${arch}"
   mkdir -p "$bin_dir" "$lib_dir"
-  copy_yt_dlp "$bin_dir"
+  link_yt_dlp "$bin_dir"
   copy_deno "$arch" "$bin_dir"
 
   ditto "$arm64_ffmpeg_path" "${bin_dir}/ffmpeg"
@@ -193,7 +199,7 @@ stage_x86_64_runtime() {
   echo "Staging x86_64 media runtime from Evermeet ffmpeg ${x86_64_ffmpeg_version}"
   rm -rf "${runtime_dir:?}/${arch}"
   mkdir -p "$bin_dir" "$ffmpeg_extract" "$ffprobe_extract"
-  copy_yt_dlp "$bin_dir"
+  link_yt_dlp "$bin_dir"
   copy_deno "$arch" "$bin_dir"
 
   download_file "$x86_64_ffmpeg_url" "$ffmpeg_zip"
@@ -221,6 +227,7 @@ if [[ "$host_arch" != "arm64" ]]; then
   echo "Host architecture is ${host_arch}; arm64 ffmpeg paths may need ARM64_FFMPEG_PATH/ARM64_FFPROBE_PATH overrides." >&2
 fi
 
+stage_yt_dlp
 stage_arm64_runtime
 stage_x86_64_runtime
 
@@ -229,7 +236,7 @@ cat > "${runtime_dir}/README.md" <<EOF
 
 This directory holds Harbor's self-contained media runtime for public media downloads.
 
-- yt-dlp: ${yt_dlp_version}, universal macOS build copied into both architecture folders.
+- yt-dlp: ${yt_dlp_version}, one universal macOS build linked from both architecture folders.
 - Deno: ${deno_version}, official macOS builds for each architecture.
 - arm64 ffmpeg/ffprobe: copied from ${arm64_ffmpeg_path%/bin/ffmpeg}
 - x86_64 ffmpeg/ffprobe: Evermeet ${x86_64_ffmpeg_version} static macOS builds.

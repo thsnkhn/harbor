@@ -246,6 +246,7 @@ final class NetworkBindingTests: XCTestCase {
         func arguments(for networkBinding: NetworkBindingStatus) -> [String] {
             Aria2TorrentService.daemonArguments(
                 sessionFilePath: "/tmp/aria2.session",
+                stateDirectoryPath: "/tmp/aria2-next-state",
                 rpcPort: 18_000,
                 rpcSecret: "secret",
                 hostProcessIdentifier: 42,
@@ -264,9 +265,10 @@ final class NetworkBindingTests: XCTestCase {
             )
         )
         XCTAssertEqual(
-            bound.filter { $0.hasPrefix("--interface=") },
-            ["--interface=utun6"]
+            bound.filter { $0.hasPrefix("--bt-interface=") },
+            ["--bt-interface=utun6"]
         )
+        XCTAssertTrue(bound.contains("--state-dir=/tmp/aria2-next-state"))
         XCTAssertTrue(bound.contains("--rpc-listen-all=false"))
 
         for networkBinding in [
@@ -274,7 +276,7 @@ final class NetworkBindingTests: XCTestCase {
             .unavailable(displayName: "ProtonVPN")
         ] {
             XCTAssertFalse(
-                arguments(for: networkBinding).contains { $0.hasPrefix("--interface=") }
+                arguments(for: networkBinding).contains { $0.hasPrefix("--bt-interface=") }
             )
         }
     }
@@ -310,6 +312,57 @@ final class NetworkBindingTests: XCTestCase {
         let restored = try JSONDecoder().decode(DownloadRecord.self, from: data)
 
         XCTAssertTrue(restored.wasSuspendedForNetworkBinding)
+    }
+
+    func testInitialAvailableNetworkStatusDoesNotErasePersistedDownloadsBeforeInitialization() async throws {
+        let suiteName = "HarborTests.NetworkBindingInitialStatus.\(UUID().uuidString)"
+        let userDefaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        userDefaults.removePersistentDomain(forName: suiteName)
+        defer { userDefaults.removePersistentDomain(forName: suiteName) }
+
+        let persistenceRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent(
+                "HarborNetworkInitialStatusTests-\(UUID().uuidString)",
+                isDirectory: true
+            )
+        defer { try? FileManager.default.removeItem(at: persistenceRoot) }
+
+        let persistence = DownloadPersistence(directoryURL: persistenceRoot)
+        let torrent = DownloadItem(
+            sourceURL: try XCTUnwrap(
+                URL(string: "magnet:?xt=urn:btih:0123456789abcdef0123456789abcdef01234567")
+            ),
+            sourceKind: .magnetLink,
+            backend: .aria2,
+            preferredFilename: nil,
+            destinationFolderPath: persistenceRoot.path,
+            status: .paused
+        )
+        try await persistence.save([torrent.makeRecord()])
+
+        let settings = AppSettingsStore(
+            userDefaults: userDefaults,
+            networkBindingCatalog: makeVPNCatalog()
+        )
+        let center = DownloadCenter(
+            settings: settings,
+            persistence: persistence,
+            networkBindingMonitor: NetworkBindingMonitor(
+                catalog: makeVPNCatalog(),
+                debounceInterval: 0
+            ),
+            torrentService: Aria2TorrentService(daemonStartupOperation: { _ in })
+        )
+
+        try await Task.sleep(for: .milliseconds(400))
+
+        let persistedDownloadIDs = try await persistence.load().map(\.id)
+        XCTAssertEqual(persistedDownloadIDs, [torrent.id])
+
+        await center.initializeIfNeeded()
+
+        XCTAssertEqual(center.downloads.map(\.id), [torrent.id])
+        _ = await center.shutdownForTermination()
     }
 
     func testEngineRefusesToStartWhileTheBoundInterfaceIsUnavailable() async {

@@ -37,6 +37,8 @@ struct DownloadsSettingsTab: View {
     let settings: AppSettingsStore
 
     var body: some View {
+        @Bindable var settings = settings
+
         Form {
             Section("Save Locations") {
                 DestinationFolderRow(
@@ -70,8 +72,52 @@ struct DownloadsSettingsTab: View {
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
+
+            Section("Proxy") {
+                Picker("Mode", selection: $settings.proxyMode) {
+                    ForEach(NetworkProxyMode.allCases) { mode in
+                        Text(mode.title).tag(mode)
+                    }
+                }
+
+                if settings.proxyMode == .manual {
+                    Picker("Protocol", selection: $settings.proxyScheme) {
+                        ForEach(NetworkProxyScheme.allCases) { scheme in
+                            Text(scheme.title).tag(scheme)
+                        }
+                    }
+
+                    TextField("Host", text: $settings.proxyHost)
+                        .textFieldStyle(.roundedBorder)
+
+                    TextField("Port", value: $settings.proxyPort, format: .number)
+                        .textFieldStyle(.roundedBorder)
+                        .monospacedDigit()
+
+                    if let error = settings.proxySettings.validationError {
+                        Text(error.localizedDescription)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                    }
+                }
+
+                Text(proxyExplanation)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
         .formStyle(.grouped)
+    }
+
+    private var proxyExplanation: LocalizedStringResource {
+        switch settings.proxyMode {
+        case .none:
+            "Harbor connects directly for regular and torrent downloads."
+        case .system:
+            "Regular downloads use the macOS proxy configuration. Torrents use its static HTTP or SOCKS proxy when one is configured."
+        case .manual:
+            "The manual proxy applies to new regular and torrent connections. Proxy authentication is not supported yet."
+        }
     }
 }
 
@@ -159,6 +205,53 @@ struct TorrentsSettingsTab: View {
                 }
 
                 Text("Torrent traffic uses only the selected interface. While that interface is unavailable, Harbor pauses every torrent and resumes it once the interface returns. Regular and media downloads are not affected.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section("Peer Blocklist") {
+                Toggle("Enable IP blocklist", isOn: $settings.torrentBlocklistEnabled)
+
+                if settings.torrentBlocklistEnabled {
+                    TextField("Blocklist URL", text: $settings.torrentBlocklistURL)
+                        .textFieldStyle(.roundedBorder)
+                        .onSubmit {
+                            settings.requestTorrentBlocklistRefresh()
+                        }
+
+                    LabeledContent("Status") {
+                        if settings.isRefreshingTorrentBlocklist {
+                            ProgressView()
+                                .controlSize(.small)
+                        } else if let lastUpdated = settings.torrentBlocklistLastUpdated {
+                            Text(
+                                "\(settings.torrentBlocklistRuleCount) rules • \(lastUpdated.formatted(date: .abbreviated, time: .shortened))"
+                            )
+                            .foregroundStyle(.secondary)
+                        } else {
+                            Text("No valid blocklist cached")
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
+                    Button("Refresh Blocklist", systemImage: "arrow.clockwise") {
+                        settings.requestTorrentBlocklistRefresh()
+                    }
+                    .disabled(
+                        settings.torrentBlocklistURL
+                            .trimmingCharacters(in: .whitespacesAndNewlines)
+                            .isEmpty
+                            || settings.isRefreshingTorrentBlocklist
+                    )
+
+                    if let errorMessage = settings.torrentBlocklistErrorMessage {
+                        Text(errorMessage)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                    }
+                }
+
+                Text("Aria2 Next accepts one IPv4 address, IPv6 address, or CIDR range per line. The last valid cached list remains active when a refresh fails.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

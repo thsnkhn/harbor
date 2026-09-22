@@ -308,13 +308,15 @@ final class HarborModelAndSafetyTests: XCTestCase {
             transferOptions: TorrentTransferOptions(
                 downloadLimitBytesPerSecond: nil,
                 uploadLimitBytesPerSecond: 75_000,
-                shouldSeed: true
+                shouldSeed: true,
+                downloadsTorrentPiecesSequentially: true
             )
         )
 
         XCTAssertEqual(options["max-download-limit"], "0")
         XCTAssertEqual(options["max-upload-limit"], "75000")
-        XCTAssertEqual(options["max-connection-per-server"], "6")
+        XCTAssertEqual(options["stream-max-connections"], "6")
+        XCTAssertEqual(options["force-sequential"], "true")
         XCTAssertEqual(options["seed-ratio"], "0.0")
         XCTAssertNil(options["seed-time"])
 
@@ -328,6 +330,7 @@ final class HarborModelAndSafetyTests: XCTestCase {
             )
         )
         XCTAssertEqual(ratioLimitedOptions["seed-ratio"], "2.0")
+        XCTAssertNil(ratioLimitedOptions["force-sequential"])
     }
 
     func testMediaDownloadArgumentsKeepAutomaticAndExactFormatPathsSeparate() throws {
@@ -686,6 +689,7 @@ final class HarborModelAndSafetyTests: XCTestCase {
             uploadLimitOverride: .unlimited,
             torrentFingerprint: "fingerprint",
             managedTorrentSourcePath: "/tmp/managed.torrent",
+            downloadsTorrentPiecesSequentially: true,
             shouldSeedAfterDownload: true
         )
 
@@ -697,6 +701,7 @@ final class HarborModelAndSafetyTests: XCTestCase {
         XCTAssertEqual(restored.uploadLimitOverride, .unlimited)
         XCTAssertEqual(restored.torrentFingerprint, "fingerprint")
         XCTAssertEqual(restored.managedTorrentSourcePath, "/tmp/managed.torrent")
+        XCTAssertTrue(restored.downloadsTorrentPiecesSequentially)
         XCTAssertTrue(restored.shouldSeedAfterDownload)
     }
 
@@ -746,6 +751,7 @@ final class HarborModelAndSafetyTests: XCTestCase {
         let record = try legacyTorrentRecord(status: .completed)
 
         XCTAssertTrue(record.requestHeaders.isEmpty)
+        XCTAssertFalse(record.downloadsTorrentPiecesSequentially)
         XCTAssertFalse(record.shouldSeedAfterDownload)
         XCTAssertFalse(record.removeOriginalTorrentAfterImport)
         XCTAssertTrue(record.completionNotificationDelivered)
@@ -964,6 +970,7 @@ final class HarborModelAndSafetyTests: XCTestCase {
             "managedTorrentSourcePath",
             "torrentPayloadPaths",
             "uploadedBytes",
+            "downloadsTorrentPiecesSequentially",
             "shouldSeedAfterDownload",
             "removeOriginalTorrentAfterImport",
             "completionNotificationDelivered"

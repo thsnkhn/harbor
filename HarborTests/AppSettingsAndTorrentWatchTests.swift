@@ -4,6 +4,59 @@ import XCTest
 
 @MainActor
 final class AppSettingsAndTorrentWatchTests: XCTestCase {
+    func testTorrentBlocklistSettingsPersistAndAcceptedStatusUpdates() {
+        let suiteName = "HarborTests.Blocklist.\(UUID().uuidString)"
+        let userDefaults = UserDefaults(suiteName: suiteName)!
+        userDefaults.removePersistentDomain(forName: suiteName)
+        defer { userDefaults.removePersistentDomain(forName: suiteName) }
+
+        let settings = AppSettingsStore(userDefaults: userDefaults)
+        XCTAssertFalse(settings.torrentBlocklistEnabled)
+
+        var didChange = false
+        settings.torrentBlocklistSettingsDidChange = { didChange = true }
+        settings.torrentBlocklistURL = "https://example.com/blocklist.txt"
+        settings.torrentBlocklistEnabled = true
+        XCTAssertTrue(didChange)
+
+        let updatedAt = Date(timeIntervalSince1970: 1_789_300_000)
+        settings.updateTorrentBlocklistStatus(
+            TorrentBlocklistStatus(ruleCount: 42, lastUpdated: updatedAt)
+        )
+
+        let restored = AppSettingsStore(userDefaults: userDefaults)
+        XCTAssertTrue(restored.torrentBlocklistEnabled)
+        XCTAssertEqual(restored.torrentBlocklistURL, "https://example.com/blocklist.txt")
+        XCTAssertEqual(settings.torrentBlocklistRuleCount, 42)
+        XCTAssertEqual(settings.torrentBlocklistLastUpdated, updatedAt)
+    }
+
+    func testProxySettingsDefaultToSystemAndPersistManualConfiguration() {
+        let suiteName = "HarborTests.Proxy.\(UUID().uuidString)"
+        let userDefaults = UserDefaults(suiteName: suiteName)!
+        userDefaults.removePersistentDomain(forName: suiteName)
+        defer { userDefaults.removePersistentDomain(forName: suiteName) }
+
+        let settings = AppSettingsStore(userDefaults: userDefaults)
+        XCTAssertEqual(settings.proxySettings, .system)
+
+        var observedSettings: NetworkProxySettings?
+        settings.proxySettingsDidChange = { observedSettings = $0 }
+        settings.proxyMode = .manual
+        settings.proxyScheme = .socks5
+        settings.proxyHost = "proxy.example"
+        settings.proxyPort = 1_080
+
+        let expected = NetworkProxySettings(
+            mode: .manual,
+            scheme: .socks5,
+            host: "proxy.example",
+            port: 1_080
+        )
+        XCTAssertEqual(observedSettings, expected)
+        XCTAssertEqual(AppSettingsStore(userDefaults: userDefaults).proxySettings, expected)
+    }
+
     func testPreventSleepDefaultsOffAndPersists() {
         let suiteName = "HarborTests.PreventSleep.\(UUID().uuidString)"
         let userDefaults = UserDefaults(suiteName: suiteName)!

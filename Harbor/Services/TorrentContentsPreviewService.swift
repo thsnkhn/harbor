@@ -5,29 +5,27 @@ struct TorrentContentsPreviewService: Sendable {
         sourceKind: DownloadSourceKind,
         sourceURL: URL,
         requestHeaders: [RequestHeader],
+        proxySettings: NetworkProxySettings,
         torrentService: Aria2TorrentService
     ) async throws -> TorrentContentsPreview {
-        let data: Data
         switch sourceKind {
         case .magnetLink:
-            data = try await torrentService.previewMagnetMetainfo(
-                at: sourceURL,
-                requestHeaders: requestHeaders
-            )
+            return try await torrentService.previewMagnetContents(at: sourceURL)
         case .torrentFile:
+            let data: Data
             if sourceURL.isFileURL {
                 data = try readLocalTorrent(at: sourceURL)
             } else {
                 data = try await TorrentSourceLoader.fetch(
                     from: sourceURL,
-                    requestHeaders: requestHeaders
+                    requestHeaders: requestHeaders,
+                    proxySettings: proxySettings
                 )
             }
+            return try TorrentMetainfoParser.preview(from: data)
         case .directURL, .mediaURL:
             throw TorrentEngineError.invalidSource
         }
-
-        return try TorrentMetainfoParser.preview(from: data)
     }
 
     private func readLocalTorrent(at sourceURL: URL) throws -> Data {

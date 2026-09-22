@@ -59,11 +59,13 @@ actor ManagedTorrentSourceStore {
 
     func fetchRemoteTorrent(
         from remoteURL: URL,
-        requestHeaders: [RequestHeader]
+        requestHeaders: [RequestHeader],
+        proxySettings: NetworkProxySettings = .system
     ) async throws -> ManagedTorrentSource {
         let data = try await TorrentSourceLoader.fetch(
             from: remoteURL,
-            requestHeaders: requestHeaders
+            requestHeaders: requestHeaders,
+            proxySettings: proxySettings
         )
         return try persist(data: data, originalURL: remoteURL)
     }

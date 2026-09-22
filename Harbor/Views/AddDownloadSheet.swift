@@ -48,6 +48,8 @@ struct AddDownloadSheet: View {
     @State private var mediaPreviewTask: Task<Void, Never>?
     @State private var mediaPreviewGeneration = 0
     @State private var torrentPreviewSource: TorrentPreviewSource?
+    @State private var downloadsTorrentPiecesSequentially = false
+    @State private var isSequentialDownloadHelpPresented = false
     @State private var hasApprovedSensitiveTorrentHeaders = false
     @State private var pendingSensitiveTorrentAction: PendingSensitiveTorrentAction?
 
@@ -241,7 +243,7 @@ struct AddDownloadSheet: View {
             }
         } message: {
             Text(
-                "The supplied headers contain Cookie or Authorization information. aria2 may send these headers to every HTTP/HTTPS tracker and web seed used by this torrent. Proceed?"
+                "The supplied headers contain Cookie or Authorization information. Aria2 Next sends them to each configured HTTP/HTTPS web seed and preserves them on same-origin redirects. It removes them when a redirect changes origin. Proceed?"
             )
         }
     }
@@ -289,6 +291,7 @@ struct AddDownloadSheet: View {
             shouldStartImmediately: shouldStartImmediately,
             requestHeaders: requestHeaders,
             torrentFileSelection: selection,
+            downloadsTorrentPiecesSequentially: downloadsTorrentPiecesSequentially,
             preparedTorrentMetainfo: preview.metainfoData,
             torrentMetadataName: preview.name
         )
@@ -517,8 +520,56 @@ struct AddDownloadSheet: View {
             }
             .padding(.top, 10)
             .padding(.leading, 24)
+
+            if showsTorrentOptions {
+                HStack(spacing: 6) {
+                    Toggle(
+                        "Download pieces sequentially",
+                        isOn: $downloadsTorrentPiecesSequentially
+                    )
+
+                    Button {
+                        isSequentialDownloadHelpPresented.toggle()
+                    } label: {
+                        Image(systemName: "info.circle")
+                    }
+                    .buttonStyle(.borderless)
+                    .controlSize(.small)
+                    .help("About sequential torrent downloads")
+                    .accessibilityLabel("About sequential torrent downloads")
+                    .popover(isPresented: $isSequentialDownloadHelpPresented) {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Sequential torrent downloads")
+                                .font(.headline)
+
+                            Text(
+                                "Aria2 Next prefers earlier pieces when peers make them available. Availability and piece priorities can still affect the order. This mode may reduce swarm efficiency and does not guarantee playback before the download finishes."
+                            )
+                        }
+                        .padding()
+                        .frame(width: 300)
+                    }
+                }
+                .padding(.top, 8)
+                .padding(.leading, 24)
+            }
         }
         .disclosureGroupStyle(AdvancedSettingsDisclosureStyle())
+    }
+
+    private var showsTorrentOptions: Bool {
+        guard isBatchEntry == false else {
+            return false
+        }
+
+        switch entryMode {
+        case .torrentFile:
+            return true
+        case .linkOrMagnet:
+            return parsedLinkURL
+                .flatMap { DownloadSourceKind.detect(from: $0) }?
+                .usesAria2 == true
+        }
     }
 
     private var sourceAwareDefaultDestinationPath: String {
@@ -868,7 +919,9 @@ struct AddDownloadSheet: View {
             shouldStartImmediately: shouldStartImmediately,
             requestHeaders: requestHeaders,
             mediaMetadata: requestMediaMetadata,
-            mediaFormatPreference: requestMediaFormatPreference
+            mediaFormatPreference: requestMediaFormatPreference,
+            downloadsTorrentPiecesSequentially: sourceKind.usesAria2
+                && downloadsTorrentPiecesSequentially
         )
 
         submitRequests([request])

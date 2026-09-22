@@ -72,7 +72,7 @@ assert_harbor_alive
 MEDIA_ARCH="$(uname -m)"
 YTDLP_PATH="$APP_PATH/Contents/Resources/MediaRuntime/$MEDIA_ARCH/bin/yt-dlp"
 DENO_PATH="$APP_PATH/Contents/Resources/MediaRuntime/$MEDIA_ARCH/bin/deno"
-ARIA2_PATH="$APP_PATH/Contents/Resources/TorrentRuntime/$MEDIA_ARCH/bin/aria2c"
+ARIA2_PATH="$APP_PATH/Contents/Resources/TorrentRuntime/$MEDIA_ARCH/bin/aria2-next"
 
 if [ -x "$YTDLP_PATH" ]; then
   echo "Testing bundled yt-dlp helper..."
@@ -91,11 +91,11 @@ else
 fi
 
 if [ -x "$ARIA2_PATH" ]; then
-  echo "Testing bundled aria2 helper and torrent fixture..."
+  echo "Testing bundled Aria2 Next helper and torrent fixture..."
   "$ARIA2_PATH" --version >/dev/null
   "$ARIA2_PATH" --show-files "$TORRENT_FILE" >/dev/null
 else
-  echo "Expected bundled aria2 helper at: $ARIA2_PATH" >&2
+  echo "Expected bundled Aria2 Next helper at: $ARIA2_PATH" >&2
   exit 1
 fi
 

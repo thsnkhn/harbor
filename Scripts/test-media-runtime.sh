@@ -33,7 +33,7 @@ for architecture in arm64 x86_64; do
   check_executable "${media_bin}/deno"
   check_executable "${media_bin}/ffmpeg"
   check_executable "${media_bin}/ffprobe"
-  check_executable "${torrent_bin}/aria2c"
+  check_executable "${torrent_bin}/aria2-next"
 
   run_for_arch "$architecture" "${media_bin}/yt-dlp" --version >/dev/null
   run_for_arch "$architecture" "${media_bin}/deno" --version >/dev/null
@@ -45,7 +45,7 @@ for architecture in arm64 x86_64; do
   fi
   run_for_arch "$architecture" "${media_bin}/ffmpeg" -version >/dev/null
   run_for_arch "$architecture" "${media_bin}/ffprobe" -version >/dev/null
-  run_for_arch "$architecture" "${torrent_bin}/aria2c" --version >/dev/null
+  run_for_arch "$architecture" "${torrent_bin}/aria2-next" --version >/dev/null
 done
 
 echo "Vendored media and torrent runtime binaries launched successfully"

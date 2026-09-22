@@ -149,6 +149,7 @@ struct DownloadRecord: Codable, Sendable {
     let managedTorrentSourcePath: String?
     let torrentFileSelection: TorrentFileSelection?
     let torrentPayloadPaths: [String]
+    let downloadsTorrentPiecesSequentially: Bool
     let shouldSeedAfterDownload: Bool
     let wasSuspendedForNetworkBinding: Bool
     let removeOriginalTorrentAfterImport: Bool
@@ -189,6 +190,7 @@ struct DownloadRecord: Codable, Sendable {
         case managedTorrentSourcePath
         case torrentFileSelection
         case torrentPayloadPaths
+        case downloadsTorrentPiecesSequentially
         case shouldSeedAfterDownload
         case wasSuspendedForNetworkBinding
         case removeOriginalTorrentAfterImport
@@ -230,6 +232,7 @@ struct DownloadRecord: Codable, Sendable {
         managedTorrentSourcePath: String? = nil,
         torrentFileSelection: TorrentFileSelection? = nil,
         torrentPayloadPaths: [String] = [],
+        downloadsTorrentPiecesSequentially: Bool = false,
         shouldSeedAfterDownload: Bool? = nil,
         wasSuspendedForNetworkBinding: Bool = false,
         removeOriginalTorrentAfterImport: Bool = false,
@@ -269,6 +272,7 @@ struct DownloadRecord: Codable, Sendable {
         self.managedTorrentSourcePath = managedTorrentSourcePath
         self.torrentFileSelection = torrentFileSelection
         self.torrentPayloadPaths = torrentPayloadPaths
+        self.downloadsTorrentPiecesSequentially = downloadsTorrentPiecesSequentially
         self.shouldSeedAfterDownload = shouldSeedAfterDownload
             ?? (backend == .aria2 || sourceKind == .magnetLink || sourceKind == .torrentFile)
         self.wasSuspendedForNetworkBinding = wasSuspendedForNetworkBinding
@@ -324,6 +328,10 @@ struct DownloadRecord: Codable, Sendable {
         self.managedTorrentSourcePath = try container.decodeIfPresent(String.self, forKey: .managedTorrentSourcePath)
         self.torrentFileSelection = try container.decodeIfPresent(TorrentFileSelection.self, forKey: .torrentFileSelection)
         self.torrentPayloadPaths = try container.decodeIfPresent([String].self, forKey: .torrentPayloadPaths) ?? []
+        self.downloadsTorrentPiecesSequentially = try container.decodeIfPresent(
+            Bool.self,
+            forKey: .downloadsTorrentPiecesSequentially
+        ) ?? false
         self.shouldSeedAfterDownload = try container.decodeIfPresent(
             Bool.self,
             forKey: .shouldSeedAfterDownload
@@ -398,6 +406,7 @@ final class DownloadItem: Identifiable {
     var managedTorrentSourcePath: String?
     var torrentFileSelection: TorrentFileSelection?
     var torrentPayloadPaths: [String]
+    var downloadsTorrentPiecesSequentially: Bool
     var shouldSeedAfterDownload: Bool
     var wasSuspendedForNetworkBinding: Bool
     var removeOriginalTorrentAfterImport: Bool
@@ -441,6 +450,7 @@ final class DownloadItem: Identifiable {
         managedTorrentSourcePath: String? = nil,
         torrentFileSelection: TorrentFileSelection? = nil,
         torrentPayloadPaths: [String] = [],
+        downloadsTorrentPiecesSequentially: Bool = false,
         shouldSeedAfterDownload: Bool? = nil,
         wasSuspendedForNetworkBinding: Bool = false,
         removeOriginalTorrentAfterImport: Bool = false,
@@ -483,6 +493,7 @@ final class DownloadItem: Identifiable {
         self.managedTorrentSourcePath = managedTorrentSourcePath
         self.torrentFileSelection = torrentFileSelection
         self.torrentPayloadPaths = torrentPayloadPaths
+        self.downloadsTorrentPiecesSequentially = downloadsTorrentPiecesSequentially
         self.shouldSeedAfterDownload = shouldSeedAfterDownload
             ?? (backend == .aria2 || sourceKind == .magnetLink || sourceKind == .torrentFile)
         self.wasSuspendedForNetworkBinding = wasSuspendedForNetworkBinding
@@ -536,6 +547,7 @@ final class DownloadItem: Identifiable {
             managedTorrentSourcePath: record.managedTorrentSourcePath,
             torrentFileSelection: record.torrentFileSelection,
             torrentPayloadPaths: record.torrentPayloadPaths,
+            downloadsTorrentPiecesSequentially: record.downloadsTorrentPiecesSequentially,
             shouldSeedAfterDownload: record.shouldSeedAfterDownload,
             wasSuspendedForNetworkBinding: record.wasSuspendedForNetworkBinding,
             removeOriginalTorrentAfterImport: record.removeOriginalTorrentAfterImport,
@@ -578,6 +590,7 @@ final class DownloadItem: Identifiable {
         managedTorrentSourcePath = record.managedTorrentSourcePath
         torrentFileSelection = record.torrentFileSelection
         torrentPayloadPaths = record.torrentPayloadPaths
+        downloadsTorrentPiecesSequentially = record.downloadsTorrentPiecesSequentially
         shouldSeedAfterDownload = record.shouldSeedAfterDownload
         wasSuspendedForNetworkBinding = record.wasSuspendedForNetworkBinding
         removeOriginalTorrentAfterImport = record.removeOriginalTorrentAfterImport
@@ -828,6 +841,7 @@ final class DownloadItem: Identifiable {
             managedTorrentSourcePath: managedTorrentSourcePath,
             torrentFileSelection: torrentFileSelection,
             torrentPayloadPaths: torrentPayloadPaths,
+            downloadsTorrentPiecesSequentially: downloadsTorrentPiecesSequentially,
             shouldSeedAfterDownload: shouldSeedAfterDownload,
             wasSuspendedForNetworkBinding: wasSuspendedForNetworkBinding,
             removeOriginalTorrentAfterImport: removeOriginalTorrentAfterImport,

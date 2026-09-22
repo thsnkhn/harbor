@@ -2,7 +2,7 @@
 
 This directory holds Harbor's self-contained media runtime for public media downloads.
 
-- yt-dlp: 2026.08.19, universal macOS build copied into both architecture folders.
+- yt-dlp: 2026.08.19, one universal macOS build linked from both architecture folders.
 - Deno: 2.9.6, official macOS builds for each architecture.
 - arm64 ffmpeg/ffprobe: copied from /opt/homebrew
 - x86_64 ffmpeg/ffprobe: Evermeet 8.1.2 static macOS builds.

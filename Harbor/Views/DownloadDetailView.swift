@@ -42,6 +42,9 @@ private struct DownloadInspectorContent: View {
                 }
 
                 DownloadTransferSection(item: item, center: center)
+                if item.backend == .aria2, item.backendIdentifier != nil {
+                    TorrentTrackersSection(item: item, center: center)
+                }
                 DownloadStorageSection(item: item)
                 DownloadActivitySection(item: item)
 
@@ -1233,7 +1236,7 @@ private extension DownloadActivityKind {
     }
 }
 
-private struct DownloadDetailSection<Content: View>: View {
+struct DownloadDetailSection<Content: View>: View {
     let title: LocalizedStringResource
     @ViewBuilder let content: () -> Content
 

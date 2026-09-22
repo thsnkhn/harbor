@@ -117,6 +117,7 @@ final class DownloadCenter {
     @ObservationIgnored private var coordinator: DownloadCoordinator! = nil
     @ObservationIgnored private var browserCoordinator: BrowserDownloadCoordinator! = nil
     @ObservationIgnored private let torrentService: Aria2TorrentService
+    @ObservationIgnored private let torrentBlocklistController: TorrentBlocklistController
     @ObservationIgnored private var mediaService: MediaDownloadService! = nil
     private var initializationState: InitializationState = .notLoaded
     @ObservationIgnored private var initializationTask: Task<Void, Never>?
@@ -214,6 +215,7 @@ final class DownloadCenter {
         sleepPreventionService: (any DownloadSleepPreventing)? = nil,
         quickLookPreviewService: (any QuickLookPreviewing)? = nil,
         torrentService: Aria2TorrentService? = nil,
+        torrentBlocklistService: TorrentBlocklistService? = nil,
         mediaService: MediaDownloadService? = nil,
         directPauseOperation: @escaping DirectPauseOperation = { coordinator, id in
             await coordinator.pauseDownloadAndWait(id: id)
@@ -277,7 +279,20 @@ final class DownloadCenter {
         self.networkBindingMonitor = networkBindingMonitor ?? NetworkBindingMonitor()
         self.sleepPreventionService = sleepPreventionService ?? DownloadSleepPreventionService()
         self.quickLookPreviewService = quickLookPreviewService ?? QuickLookPreviewService()
-        self.torrentService = torrentService ?? Aria2TorrentService(transferSettings: settings.transferSettings)
+        let resolvedTorrentService = torrentService ?? Aria2TorrentService(
+            transferSettings: settings.transferSettings,
+            proxySettings: settings.proxySettings
+        )
+        self.torrentService = resolvedTorrentService
+        let resolvedBlocklistService = torrentBlocklistService ?? TorrentBlocklistService(
+            apply: { rules in
+                try await resolvedTorrentService.setPeerBlocklist(rules)
+            }
+        )
+        self.torrentBlocklistController = TorrentBlocklistController(
+            settings: settings,
+            service: resolvedBlocklistService
+        )
         self.directPauseOperation = directPauseOperation
         self.mediaCleanupOperation = mediaCleanupOperation
         self.mediaPauseOperation = mediaPauseOperation
@@ -302,7 +317,8 @@ final class DownloadCenter {
                 }
             },
             recoveryDirectoryURL: directRecoveryDirectoryURL,
-            completedHandoffStore: completedHandoffStore
+            completedHandoffStore: completedHandoffStore,
+            proxySettings: settings.proxySettings
         )
         self.browserCoordinator = BrowserDownloadCoordinator(
             temporaryDirectory: browserRecoveryDirectoryURL,
@@ -321,6 +337,9 @@ final class DownloadCenter {
         }
         settings.networkBindingDidChange = { [weak self] _ in
             self?.configureNetworkBinding()
+        }
+        settings.proxySettingsDidChange = { [weak self] proxySettings in
+            self?.applyProxySettings(proxySettings)
         }
         self.networkBindingMonitor.statusDidChange = { [weak self] status in
             self?.handleNetworkBindingStatus(status)
@@ -616,6 +635,7 @@ final class DownloadCenter {
             selectDownload(downloads.first?.id)
             await backfillLegacyTorrentFingerprints()
             await reconcileRestoredTorrentSession()
+            await torrentBlocklistController.activate()
             initializationState = .loaded
             initializationFailureMessage = nil
             if settings.networkBindingStatus.isAvailable {
@@ -2026,14 +2046,18 @@ final class DownloadCenter {
                 return
             }
 
+            var didClearSuspension = false
             for item in downloads where item.wasSuspendedForNetworkBinding {
                 item.wasSuspendedForNetworkBinding = false
+                didClearSuspension = true
                 guard item.status == .paused else {
                     continue
                 }
                 resumeDownload(item)
             }
-            schedulePersist()
+            if didClearSuspension {
+                schedulePersist()
+            }
         }
     }
 
@@ -2554,8 +2578,34 @@ final class DownloadCenter {
             sourceKind: sourceKind,
             sourceURL: sourceURL,
             requestHeaders: requestHeaders,
+            proxySettings: settings.proxySettings,
             torrentService: torrentService
         )
+    }
+
+    func torrentTrackers(for id: UUID) async throws -> [TorrentTracker] {
+        try await torrentService.trackers(gid: try torrentGID(for: id))
+    }
+
+    func addTorrentTracker(_ url: String, for id: UUID) async throws {
+        try await torrentService.addTracker(url, gid: try torrentGID(for: id))
+    }
+
+    func removeTorrentTracker(_ tracker: TorrentTracker, for id: UUID) async throws {
+        try await torrentService.removeTracker(tracker, gid: try torrentGID(for: id))
+    }
+
+    func reannounceTorrentTrackers(for id: UUID) async throws {
+        try await torrentService.forceTrackerAnnounce(gid: try torrentGID(for: id))
+    }
+
+    private func torrentGID(for id: UUID) throws -> String {
+        guard let item = item(for: id),
+              item.backend == .aria2,
+              let gid = item.backendIdentifier else {
+            throw TorrentTrackerError.unavailable
+        }
+        return gid
     }
 
     func refreshMediaFormats(for id: UUID) async {
@@ -2640,6 +2690,7 @@ final class DownloadCenter {
             torrentSourceFingerprint: managedTorrentSource?.sourceFingerprint,
             managedTorrentSourcePath: managedTorrentSource?.managedURL.path,
             torrentFileSelection: request.torrentFileSelection,
+            downloadsTorrentPiecesSequentially: request.downloadsTorrentPiecesSequentially,
             shouldSeedAfterDownload: backend == .aria2 ? settings.seedNewTorrents : false
         )
 
@@ -2692,7 +2743,8 @@ final class DownloadCenter {
             } else {
                 managedSource = try await managedTorrentSourceStore.fetchRemoteTorrent(
                     from: request.sourceURL,
-                    requestHeaders: request.requestHeaders
+                    requestHeaders: request.requestHeaders,
+                    proxySettings: settings.proxySettings
                 )
             }
 
@@ -4326,7 +4378,8 @@ final class DownloadCenter {
             } else {
                 managedSource = try await managedTorrentSourceStore.fetchRemoteTorrent(
                     from: sourceURL,
-                    requestHeaders: item.requestHeaders
+                    requestHeaders: item.requestHeaders,
+                    proxySettings: settings.proxySettings
                 )
             }
 
@@ -6139,6 +6192,13 @@ final class DownloadCenter {
         startNextQueuedDownloadsIfNeeded()
     }
 
+    private func applyProxySettings(_ proxySettings: NetworkProxySettings) {
+        coordinator.updateProxySettings(proxySettings)
+        Task { [torrentService] in
+            await torrentService.updateProxySettings(proxySettings)
+        }
+    }
+
     private func torrentTransferOptions(for item: DownloadItem) -> TorrentTransferOptions {
         TorrentTransferOptions(
             downloadLimitBytesPerSecond: item.downloadLimitOverride.resolvedBytesPerSecond(
@@ -6150,7 +6210,8 @@ final class DownloadCenter {
             shouldSeed: item.shouldSeedAfterDownload,
             seedRatioLimit: settings.seedingRatioLimit,
             verifyExistingData: item.finishedAt != nil,
-            selectedFileIndexes: item.torrentFileSelection?.selectedIndexes
+            selectedFileIndexes: item.torrentFileSelection?.selectedIndexes,
+            downloadsTorrentPiecesSequentially: item.downloadsTorrentPiecesSequentially
         )
     }
 

@@ -105,6 +105,12 @@ final class AppSettingsStore {
         static let networkBindingSelection = "torrentNetworkBindingSelection"
         static let networkBindingDisplayName = "torrentNetworkBindingDisplayName"
         static let downloadStagingPath = "downloadStagingPath"
+        static let proxyMode = "networkProxyMode"
+        static let proxyScheme = "networkProxyScheme"
+        static let proxyHost = "networkProxyHost"
+        static let proxyPort = "networkProxyPort"
+        static let torrentBlocklistEnabled = "torrentBlocklistEnabled"
+        static let torrentBlocklistURL = "torrentBlocklistURL"
     }
 
     static let maxConcurrentDownloadsRange = 1 ... 16
@@ -118,6 +124,9 @@ final class AppSettingsStore {
     @ObservationIgnored var transferSettingsDidChange: ((DownloadTransferSettings) -> Void)?
     @ObservationIgnored var torrentAutomationSettingsDidChange: (() -> Void)?
     @ObservationIgnored var networkBindingDidChange: ((NetworkBindingSelection) -> Void)?
+    @ObservationIgnored var proxySettingsDidChange: ((NetworkProxySettings) -> Void)?
+    @ObservationIgnored var torrentBlocklistSettingsDidChange: (() -> Void)?
+    @ObservationIgnored var torrentBlocklistRefreshRequested: (() -> Void)?
 
     var defaultDestinationPath: String {
         didSet {
@@ -198,6 +207,52 @@ final class AppSettingsStore {
             )
         }
     }
+
+    var proxyMode: NetworkProxyMode {
+        didSet {
+            userDefaults.set(proxyMode.rawValue, forKey: Keys.proxyMode)
+            notifyProxySettingsChanged()
+        }
+    }
+
+    var proxyScheme: NetworkProxyScheme {
+        didSet {
+            userDefaults.set(proxyScheme.rawValue, forKey: Keys.proxyScheme)
+            notifyProxySettingsChanged()
+        }
+    }
+
+    var proxyHost: String {
+        didSet {
+            userDefaults.set(proxyHost, forKey: Keys.proxyHost)
+            notifyProxySettingsChanged()
+        }
+    }
+
+    var proxyPort: Int {
+        didSet {
+            userDefaults.set(proxyPort, forKey: Keys.proxyPort)
+            notifyProxySettingsChanged()
+        }
+    }
+
+    var torrentBlocklistEnabled: Bool {
+        didSet {
+            userDefaults.set(torrentBlocklistEnabled, forKey: Keys.torrentBlocklistEnabled)
+            torrentBlocklistSettingsDidChange?()
+        }
+    }
+
+    var torrentBlocklistURL: String {
+        didSet {
+            userDefaults.set(torrentBlocklistURL, forKey: Keys.torrentBlocklistURL)
+        }
+    }
+
+    private(set) var torrentBlocklistLastUpdated: Date?
+    private(set) var torrentBlocklistRuleCount = 0
+    private(set) var torrentBlocklistErrorMessage: String?
+    private(set) var isRefreshingTorrentBlocklist = false
 
     var maxConcurrentDownloads: Int {
         didSet {
@@ -432,6 +487,21 @@ final class AppSettingsStore {
             .string(forKey: Keys.networkBindingDisplayName)
             ?? Self.fallbackDisplayName(for: storedSelection)
 
+        self.proxyMode = userDefaults.string(forKey: Keys.proxyMode)
+            .flatMap(NetworkProxyMode.init(rawValue:))
+            ?? .system
+        self.proxyScheme = userDefaults.string(forKey: Keys.proxyScheme)
+            .flatMap(NetworkProxyScheme.init(rawValue:))
+            ?? .http
+        self.proxyHost = userDefaults.string(forKey: Keys.proxyHost) ?? ""
+        let storedProxyPort = userDefaults.integer(forKey: Keys.proxyPort)
+        self.proxyPort = storedProxyPort == 0 ? 8_080 : storedProxyPort
+
+        self.torrentBlocklistEnabled = userDefaults.bool(forKey: Keys.torrentBlocklistEnabled)
+        self.torrentBlocklistURL = userDefaults.string(forKey: Keys.torrentBlocklistURL) ?? ""
+        self.torrentBlocklistLastUpdated = nil
+        self.torrentBlocklistErrorMessage = nil
+
         refreshNetworkBindingTargets()
     }
 
@@ -519,6 +589,15 @@ final class AppSettingsStore {
         return trafficMode.applying(to: customSettings)
     }
 
+    var proxySettings: NetworkProxySettings {
+        NetworkProxySettings(
+            mode: proxyMode,
+            scheme: proxyScheme,
+            host: proxyHost,
+            port: proxyPort
+        )
+    }
+
     static func clampedSpeedLimitKilobytes(_ value: Int) -> Int {
         clamped(value, to: speedLimitKilobytesRange)
     }
@@ -593,6 +672,29 @@ final class AppSettingsStore {
 
     func updateNetworkBindingStatus(_ status: NetworkBindingStatus) {
         networkBindingStatus = status
+    }
+
+    func requestTorrentBlocklistRefresh() {
+        torrentBlocklistRefreshRequested?()
+    }
+
+    func setTorrentBlocklistRefreshing(_ isRefreshing: Bool) {
+        isRefreshingTorrentBlocklist = isRefreshing
+    }
+
+    func updateTorrentBlocklistStatus(_ status: TorrentBlocklistStatus) {
+        torrentBlocklistRuleCount = status.ruleCount
+        torrentBlocklistLastUpdated = status.lastUpdated
+        torrentBlocklistErrorMessage = nil
+    }
+
+    func updateTorrentBlocklistError(_ error: Error) {
+        torrentBlocklistErrorMessage = error.localizedDescription
+    }
+
+    func markTorrentBlocklistDisabled() {
+        torrentBlocklistErrorMessage = nil
+        torrentBlocklistRuleCount = 0
     }
 
     func refreshNetworkBindingTargets() {
@@ -688,6 +790,10 @@ final class AppSettingsStore {
 
     private func notifyTorrentAutomationSettingsChanged() {
         torrentAutomationSettingsDidChange?()
+    }
+
+    private func notifyProxySettingsChanged() {
+        proxySettingsDidChange?(proxySettings)
     }
 
     private func speedLimitBytesPerSecond(

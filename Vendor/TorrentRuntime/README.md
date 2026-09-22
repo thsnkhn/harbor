@@ -1,12 +1,9 @@
-# Bundled aria2 Runtime
+# Bundled Aria2 Next Runtime
 
-This directory holds the self-contained `aria2c` runtime that Harbor ships for torrent support.
+This directory holds Harbor's self-contained `aria2-next` runtime for torrent support.
 
 Current bundled architectures:
 
-- arm64: aria2 1.37.0 with bundled non-system Homebrew libraries.
-- x86_64: aria2 1.36.0 with bundled non-system conda-forge libraries.
+- arm64 and x86_64: `QZGao/aria2-next`, a fork of `AnInsomniacy/aria2-next` with modifications to support per-download HTTP headers for BitTorrent web-seeds.
 
-Each `TorrentRuntime/<arch>/bin` and `TorrentRuntime/<arch>/lib` folder includes the `aria2c` binary and its non-system dynamic libraries so Harbor can launch torrents without requiring Homebrew on the user's Mac.
-
-TODO: Add a refresh script that rebuilds both architecture folders from pinned upstream artifacts.
+Each `TorrentRuntime/<arch>/bin` folder includes the standalone `aria2-next` binary so Harbor can launch torrents without requiring Homebrew on the user's Mac.

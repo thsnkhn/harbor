@@ -10,6 +10,7 @@ struct AddDownloadRequest: Sendable {
     let mediaMetadata: MediaDownloadMetadata?
     let mediaFormatPreference: MediaDownloadFormatPreference?
     let torrentFileSelection: TorrentFileSelection?
+    let downloadsTorrentPiecesSequentially: Bool
     let preparedTorrentMetainfo: Data?
     let torrentMetadataName: String?
 
@@ -23,6 +24,7 @@ struct AddDownloadRequest: Sendable {
         mediaMetadata: MediaDownloadMetadata? = nil,
         mediaFormatPreference: MediaDownloadFormatPreference? = nil,
         torrentFileSelection: TorrentFileSelection? = nil,
+        downloadsTorrentPiecesSequentially: Bool = false,
         preparedTorrentMetainfo: Data? = nil,
         torrentMetadataName: String? = nil
     ) {
@@ -35,6 +37,7 @@ struct AddDownloadRequest: Sendable {
         self.mediaMetadata = mediaMetadata
         self.mediaFormatPreference = mediaFormatPreference
         self.torrentFileSelection = torrentFileSelection
+        self.downloadsTorrentPiecesSequentially = downloadsTorrentPiecesSequentially
         self.preparedTorrentMetainfo = preparedTorrentMetainfo
         self.torrentMetadataName = torrentMetadataName
     }
