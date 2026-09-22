@@ -13,6 +13,9 @@ struct DownloadsContentView: View {
         let downloads = center.filteredDownloads
 
         VStack(spacing: 0) {
+            if !center.selectedTags.isEmpty {
+                DownloadTagFilterBar(center: center)
+            }
             if downloads.isEmpty {
                 emptyState
             } else {
@@ -128,7 +131,10 @@ struct DownloadsContentView: View {
     }
 
     private var emptyTitle: LocalizedStringResource {
-        switch center.selectedFilter {
+        if !center.selectedTags.isEmpty || !center.searchText.isEmpty {
+            return "No Matching Downloads"
+        }
+        return switch center.selectedFilter {
         case .all:
             "No Downloads Yet"
         case .active:
@@ -149,7 +155,10 @@ struct DownloadsContentView: View {
     }
 
     private var emptyDescription: LocalizedStringResource {
-        switch center.selectedFilter {
+        if !center.selectedTags.isEmpty || !center.searchText.isEmpty {
+            return "No downloads match the selected status, tags, and search. Change or clear the filters to see more downloads."
+        }
+        return switch center.selectedFilter {
         case .all:
             "Paste an HTTP or HTTPS URL to start building your queue."
         case .active:

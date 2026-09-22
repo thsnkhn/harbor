@@ -21,7 +21,7 @@ private struct DownloadInspectorContent: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
-                DownloadHeader(item: item)
+                DownloadHeader(item: item, center: center)
 
                 DownloadActionRow(
                     item: item,
@@ -289,6 +289,7 @@ private struct MediaFormatRecoverySection: View {
 
 private struct DownloadHeader: View {
     let item: DownloadItem
+    let center: DownloadCenter
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -298,6 +299,9 @@ private struct DownloadHeader: View {
                     .lineLimit(3)
 
                 sourceLine
+
+                DownloadInspectorTags(item: item, center: center)
+                    .id(item.id)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 

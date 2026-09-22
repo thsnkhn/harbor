@@ -10,7 +10,8 @@ extension AddDownloadRequest {
         from urls: [URL],
         destinationFolder: URL,
         shouldStartImmediately: Bool,
-        requestHeaders: [RequestHeader] = []
+        requestHeaders: [RequestHeader] = [],
+        tags: [String] = []
     ) -> [AddDownloadRequest] {
         urls.compactMap { url in
             guard let sourceKind = DownloadSourceKind.detect(from: url) else {
@@ -23,7 +24,8 @@ extension AddDownloadRequest {
                 customFilename: nil,
                 destinationFolder: destinationFolder,
                 shouldStartImmediately: shouldStartImmediately,
-                requestHeaders: requestHeaders
+                requestHeaders: requestHeaders,
+                tags: tags
             )
         }
     }

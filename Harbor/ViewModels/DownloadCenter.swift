@@ -177,6 +177,13 @@ final class DownloadCenter {
             reconcilePrimaryDownloadFromSelection()
         }
     }
+    var selectedTags: Set<String> = [] {
+        didSet { pruneSelectionToVisibleDownloads() }
+    }
+    var matchesAllTags = true {
+        didSet { pruneSelectionToVisibleDownloads() }
+    }
+
     var searchText = "" {
         didSet {
             pruneSelectionToVisibleDownloads()
@@ -1676,10 +1683,55 @@ final class DownloadCenter {
 
     private func matchesCurrentFilter(_ item: DownloadItem, query: String) -> Bool {
         guard selectedFilter.includes(item) else { return false }
+        guard DownloadTags.matches(item.tags, selected: selectedTags, matchAll: matchesAllTags) else { return false }
         guard query.isEmpty == false else { return true }
         return item.displayName.localizedCaseInsensitiveContains(query)
             || item.sourceDisplayText.localizedCaseInsensitiveContains(query)
             || item.sourceHost.localizedCaseInsensitiveContains(query)
+            || item.tags.contains { $0.localizedCaseInsensitiveContains(query.hasPrefix("#") ? String(query.dropFirst()) : query) }
+    }
+
+    var availableTags: [String] {
+        DownloadTags.normalized(downloads.flatMap(\.tags))
+            .sorted { $0.localizedStandardCompare($1) == .orderedAscending }
+    }
+
+    private func canonicalTags(_ tags: [String]) -> [String] {
+        let existing = availableTags
+        return DownloadTags.normalized(tags).map { tag in
+            existing.first { DownloadTags.key($0) == DownloadTags.key(tag) } ?? tag
+        }
+    }
+
+    func setTags(_ tags: [String], for id: UUID) {
+        guard let item = item(for: id) else { return }
+        item.tags = canonicalTags(tags)
+        pruneSelectionToVisibleDownloads()
+        schedulePersist()
+    }
+
+    func renameTag(_ oldName: String, to newName: String) {
+        guard let name = DownloadTags.normalized([newName]).first else { return }
+        let oldKey = DownloadTags.key(oldName)
+        let replacement = availableTags.first {
+            DownloadTags.key($0) == DownloadTags.key(name) && DownloadTags.key($0) != oldKey
+        } ?? name
+        for item in downloads {
+            item.tags = DownloadTags.normalized(item.tags.map {
+                DownloadTags.key($0) == oldKey ? replacement : $0
+            })
+        }
+        if selectedTags.remove(oldKey) != nil { selectedTags.insert(DownloadTags.key(replacement)) }
+        pruneSelectionToVisibleDownloads()
+        schedulePersist()
+    }
+
+    func deleteTag(_ name: String) {
+        let key = DownloadTags.key(name)
+        for item in downloads { item.tags.removeAll { DownloadTags.key($0) == key } }
+        selectedTags.remove(key)
+        pruneSelectionToVisibleDownloads()
+        schedulePersist()
     }
 
     var selectedDownload: DownloadItem? {
@@ -2678,7 +2730,8 @@ final class DownloadCenter {
             managedTorrentSourcePath: managedTorrentSource?.managedURL.path,
             torrentFileSelection: request.torrentFileSelection,
             downloadsTorrentPiecesSequentially: request.downloadsTorrentPiecesSequentially,
-            shouldSeedAfterDownload: backend == .aria2 ? settings.seedNewTorrents : false
+            shouldSeedAfterDownload: backend == .aria2 ? settings.seedNewTorrents : false,
+            tags: canonicalTags(request.tags)
         )
 
         if request.sourceKind == .magnetLink,

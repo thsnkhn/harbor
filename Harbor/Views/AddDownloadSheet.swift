@@ -22,6 +22,9 @@ struct AddDownloadSheet: View {
         case sourceURL
     }
 
+    var availableTags: [String] = []
+    @State private var tags: [String] = []
+
     let settings: AppSettingsStore
     let mediaPreviewProvider: @MainActor (URL) async throws -> MediaDownloadMetadata?
     let torrentPreviewProvider: @MainActor (DownloadSourceKind, URL, [RequestHeader]) async throws -> TorrentContentsPreview
@@ -55,6 +58,7 @@ struct AddDownloadSheet: View {
 
     init(
         settings: AppSettingsStore,
+        availableTags: [String] = [],
         draft: AddDownloadSheetDraft,
         mediaPreviewProvider: @escaping @MainActor (URL) async throws -> MediaDownloadMetadata? = { _ in nil },
         torrentPreviewProvider: @escaping @MainActor (DownloadSourceKind, URL, [RequestHeader]) async throws -> TorrentContentsPreview = { _, _, _ in
@@ -62,6 +66,7 @@ struct AddDownloadSheet: View {
         },
         onSubmit: @escaping @MainActor ([AddDownloadRequest]) -> Void
     ) {
+        self.availableTags = availableTags
         self.settings = settings
         self.mediaPreviewProvider = mediaPreviewProvider
         self.torrentPreviewProvider = torrentPreviewProvider
@@ -132,6 +137,11 @@ struct AddDownloadSheet: View {
                 }
 
                 destinationPicker
+
+                LabeledContent("Tags") {
+                    DownloadTagEditor(tags: $tags, suggestions: availableTags)
+                        .frame(minWidth: 160)
+                }
 
                 Toggle("Start immediately", isOn: $shouldStartImmediately)
                     .accessibilityIdentifier(HarborAccessibility.addStartImmediately)
@@ -929,6 +939,12 @@ struct AddDownloadSheet: View {
 
     @MainActor
     private func submitRequests(_ requests: [AddDownloadRequest]) {
+        NSApp.keyWindow?.makeFirstResponder(nil)
+        let requests = requests.map { request in
+            var request = request
+            request.tags = tags
+            return request
+        }
         if requests.contains(where: {
             $0.sourceKind.usesAria2 && $0.requestHeaders.triggersSensitiveTorrentWarning
         }),

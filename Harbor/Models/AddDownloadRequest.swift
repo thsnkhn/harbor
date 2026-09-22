@@ -1,6 +1,7 @@
 import Foundation
 
 struct AddDownloadRequest: Sendable {
+    var tags: [String]
     let sourceKind: DownloadSourceKind
     let sourceURL: URL
     let customFilename: String?
@@ -26,8 +27,10 @@ struct AddDownloadRequest: Sendable {
         torrentFileSelection: TorrentFileSelection? = nil,
         downloadsTorrentPiecesSequentially: Bool = false,
         preparedTorrentMetainfo: Data? = nil,
-        torrentMetadataName: String? = nil
+        torrentMetadataName: String? = nil,
+        tags: [String] = []
     ) {
+        self.tags = DownloadTags.normalized(tags)
         self.sourceKind = sourceKind
         self.sourceURL = sourceURL
         self.customFilename = customFilename

@@ -90,6 +90,7 @@ struct RootView: View {
         }) { draft in
             AddDownloadSheet(
                 settings: settings,
+                availableTags: center.availableTags,
                 draft: draft,
                 mediaPreviewProvider: { url in
                     try await center.previewMediaDownload(for: url)

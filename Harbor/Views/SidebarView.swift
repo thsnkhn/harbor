@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SidebarView: View {
     let center: DownloadCenter
+    @AppStorage("downloads.tags.isExpanded") private var tagsExpanded = true
 
     var body: some View {
         @Bindable var center = center
@@ -17,6 +18,12 @@ struct SidebarView: View {
                     }
                     .tag(filter)
                     .accessibilityIdentifier(HarborAccessibility.sidebarFilter(filter))
+                }
+            }
+            if !center.availableTags.isEmpty {
+                Section("Tags", isExpanded: $tagsExpanded) {
+                    DownloadTagBrowser(center: center)
+                        .selectionDisabled()
                 }
             }
         }

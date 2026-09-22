@@ -154,6 +154,7 @@ struct DownloadRecord: Codable, Sendable {
     let wasSuspendedForNetworkBinding: Bool
     let removeOriginalTorrentAfterImport: Bool
     let completionNotificationDelivered: Bool
+    let tags: [String]
     let activityEvents: [DownloadActivityEvent]
 
     private enum CodingKeys: String, CodingKey {
@@ -195,6 +196,7 @@ struct DownloadRecord: Codable, Sendable {
         case wasSuspendedForNetworkBinding
         case removeOriginalTorrentAfterImport
         case completionNotificationDelivered
+        case tags
         case activityEvents
     }
 
@@ -237,6 +239,7 @@ struct DownloadRecord: Codable, Sendable {
         wasSuspendedForNetworkBinding: Bool = false,
         removeOriginalTorrentAfterImport: Bool = false,
         completionNotificationDelivered: Bool? = nil,
+        tags: [String] = [],
         activityEvents: [DownloadActivityEvent] = []
     ) {
         self.id = id
@@ -278,6 +281,7 @@ struct DownloadRecord: Codable, Sendable {
         self.wasSuspendedForNetworkBinding = wasSuspendedForNetworkBinding
         self.removeOriginalTorrentAfterImport = removeOriginalTorrentAfterImport
         self.completionNotificationDelivered = completionNotificationDelivered ?? (status == .completed)
+        self.tags = DownloadTags.normalized(tags)
         self.activityEvents = activityEvents
     }
 
@@ -352,6 +356,7 @@ struct DownloadRecord: Codable, Sendable {
             Bool.self,
             forKey: .completionNotificationDelivered
         ) ?? (status == .completed)
+        self.tags = DownloadTags.normalized(try container.decodeIfPresent([String].self, forKey: .tags) ?? [])
         self.activityEvents = try container.decodeIfPresent([DownloadActivityEvent].self, forKey: .activityEvents) ?? []
     }
 
@@ -411,6 +416,7 @@ final class DownloadItem: Identifiable {
     var wasSuspendedForNetworkBinding: Bool
     var removeOriginalTorrentAfterImport: Bool
     var completionNotificationDelivered: Bool
+    var tags: [String]
     var activityEvents: [DownloadActivityEvent]
 
     init(
@@ -455,6 +461,7 @@ final class DownloadItem: Identifiable {
         wasSuspendedForNetworkBinding: Bool = false,
         removeOriginalTorrentAfterImport: Bool = false,
         completionNotificationDelivered: Bool? = nil,
+        tags: [String] = [],
         activityEvents: [DownloadActivityEvent] = []
     ) {
         self.id = id
@@ -499,6 +506,7 @@ final class DownloadItem: Identifiable {
         self.wasSuspendedForNetworkBinding = wasSuspendedForNetworkBinding
         self.removeOriginalTorrentAfterImport = removeOriginalTorrentAfterImport
         self.completionNotificationDelivered = completionNotificationDelivered ?? (status == .completed)
+        self.tags = DownloadTags.normalized(tags)
         self.activityEvents = activityEvents
 
         if self.activityEvents.contains(where: { $0.kind == .added }) == false {
@@ -552,12 +560,14 @@ final class DownloadItem: Identifiable {
             wasSuspendedForNetworkBinding: record.wasSuspendedForNetworkBinding,
             removeOriginalTorrentAfterImport: record.removeOriginalTorrentAfterImport,
             completionNotificationDelivered: record.completionNotificationDelivered,
+            tags: record.tags,
             activityEvents: record.activityEvents
         )
     }
 
     func restorePersistedState(from record: DownloadRecord) {
         precondition(record.id == id && record.createdAt == createdAt)
+        // Transfer rollback must preserve tag edits made while a save was in flight.
         sourceURL = record.sourceURL
         sourceKind = record.sourceKind
         backend = record.backend
@@ -846,6 +856,7 @@ final class DownloadItem: Identifiable {
             wasSuspendedForNetworkBinding: wasSuspendedForNetworkBinding,
             removeOriginalTorrentAfterImport: removeOriginalTorrentAfterImport,
             completionNotificationDelivered: completionNotificationDelivered,
+            tags: tags,
             activityEvents: activityEvents
         )
     }
