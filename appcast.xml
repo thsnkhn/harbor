@@ -3,12 +3,25 @@
     <channel>
         <title>Harbor</title>
         <item>
+            <title>1.7.9</title>
+            <pubDate>Tue, 22 Sep 2026 13:22:03 +0500</pubDate>
+            <sparkle:version>38</sparkle:version>
+            <sparkle:shortVersionString>1.7.9</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.6</sparkle:minimumSystemVersion>
+            <sparkle:releaseNotesLink>https://thsnkhn.github.io/harbor/updates/Harbor-1.7.9.md</sparkle:releaseNotesLink>
+            <enclosure url="https://github.com/thsnkhn/harbor/releases/download/v1.7.9/Harbor-1.7.9.dmg" length="224850039" type="application/octet-stream" sparkle:edSignature="v5OBqso3P1LwyFANXOrZbEyjXfM+Eir2qZGINUQu2xvHG2IJ9sMTeu4Ednz0NsEf0HFKiP84VFu0MPoYV3MOCg=="/>
+            <sparkle:deltas>
+                <enclosure url="https://github.com/thsnkhn/harbor/releases/download/v1.7.9/Harbor38-37.delta" sparkle:deltaFrom="37" length="781582" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="Q5rQd/5u/bQ7SQlhtoyGLWkTZ9DIhMahEbWb74slNFrQbsYYnOYZtYRVUQhcpO+gaA2Aigm41biPr1E22EEMBQ=="/>
+                <enclosure url="https://github.com/thsnkhn/harbor/releases/download/v1.7.9/Harbor38-36.delta" sparkle:deltaFrom="36" length="48608334" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="Mi+l4pGRvW4L4PUYifDwe5ZjKdfv7Hf9x2+GGjOTFdOR+STErNShMP5YCQxGxtxT+23TrqzLZQOdpqdF4fUrAQ=="/>
+                <enclosure url="https://github.com/thsnkhn/harbor/releases/download/v1.7.9/Harbor38-35.delta" sparkle:deltaFrom="35" length="48607930" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="C366kcAllZ+LOBPMci0+uzPzGTBt9gfT8jJn/Ox8Qqk8lGKpM/SlwohYUVJ38FKkvQAB0wy4VjtMaKs4jDgNBA=="/>
+            </sparkle:deltas>
+        </item>
+        <item>
             <title>1.7.8</title>
             <pubDate>Fri, 18 Sep 2026 15:52:06 +0500</pubDate>
             <sparkle:version>37</sparkle:version>
             <sparkle:shortVersionString>1.7.8</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>15.6</sparkle:minimumSystemVersion>
-            <sparkle:releaseNotesLink>https://thsnkhn.github.io/harbor/updates/Harbor-1.7.8.md</sparkle:releaseNotesLink>
             <enclosure url="https://github.com/thsnkhn/harbor/releases/download/v1.7.8/Harbor-1.7.8.dmg" length="224612423" type="application/octet-stream" sparkle:edSignature="jXYDGhVrVIb0FVeNO0Sa7uTrdoSQufR3MvQSSBNXY1MYZfpY9FtvIRImNru59JOajqTjXctGm6p1FbySfLUZCA=="/>
             <sparkle:deltas>
                 <enclosure url="https://github.com/thsnkhn/harbor/releases/download/v1.7.8/Harbor37-36.delta" sparkle:deltaFrom="36" length="48449650" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="5OZ8uPaT+p9kRMGzeSJ48hQTW+bv/Vbk+6D1MIvnJZuHM2iyANujTN8ubt75wVe5TjMVMH3rg1cxX1a+wL+XAg=="/>
@@ -41,14 +54,6 @@
                 <enclosure url="https://github.com/thsnkhn/harbor/releases/download/v1.7.6/Harbor35-33.delta" sparkle:deltaFrom="33" length="3117286" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="4Q8uq8g099sC3G3v2BJOl3AxZo7UELqMP/L/NiUum4bD5PODs4Ozs8VjW5l5CJvKbuW++sf/vfTP5Lyq2C0FAQ=="/>
                 <enclosure url="https://github.com/thsnkhn/harbor/releases/download/v1.7.6/Harbor35-32.delta" sparkle:deltaFrom="32" length="3128546" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977808" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="FhjxrL0tWtXQhdCw6cQZfjLN1q5o3FMdQhyPd7QfQaa6h7BJ3MBR9t+FWKtHITQhpWzRRo8aCN6ZjhBRdXagDg=="/>
             </sparkle:deltas>
-        </item>
-        <item>
-            <title>1.7.5</title>
-            <pubDate>Fri, 11 Sep 2026 19:17:38 +0500</pubDate>
-            <sparkle:version>34</sparkle:version>
-            <sparkle:shortVersionString>1.7.5</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>15.6</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/thsnkhn/harbor/releases/download/v1.7.5/Harbor-1.7.5.dmg" length="271199352" type="application/octet-stream" sparkle:edSignature="d7lxMtC+sxwALLmmz/e3qpLMJHs6URCYbQS4V/BC7nt7fx5EfY97VWZjVwUq8blBx43PyNuwJd45XTZPKir7DQ=="/>
         </item>
     </channel>
 </rss>
