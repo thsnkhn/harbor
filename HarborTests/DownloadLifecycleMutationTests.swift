@@ -3,6 +3,51 @@ import XCTest
 @testable import Harbor
 
 extension HarborModelAndSafetyTests {
+    func testMatchingDestinationFileCompletesWithoutDownloading() async throws {
+        let fileManager = FileManager.default
+        let testRoot = fileManager.temporaryDirectory
+            .appendingPathComponent("HarborExistingFileTests-\(UUID().uuidString)", isDirectory: true)
+        let destinationURL = testRoot.appendingPathComponent("Downloads", isDirectory: true)
+        try fileManager.createDirectory(at: destinationURL, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: testRoot) }
+
+        let existingURL = destinationURL.appendingPathComponent("archive.bin")
+        try Data("existing".utf8).write(to: existingURL)
+        let suiteName = "HarborTests.ExistingFile.\(UUID().uuidString)"
+        let userDefaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { userDefaults.removePersistentDomain(forName: suiteName) }
+        let center = DownloadCenter(
+            settings: AppSettingsStore(userDefaults: userDefaults),
+            persistence: DownloadPersistence(directoryURL: testRoot.appendingPathComponent("Persistence")),
+            directRecoveryDirectoryURL: testRoot.appendingPathComponent("Recovery"),
+            completedHandoffDirectoryURL: testRoot.appendingPathComponent("Handoffs"),
+            remoteByteCountOperation: { _, _ in 8 }
+        )
+        await center.initializeIfNeeded()
+
+        let item = DownloadItem(
+            sourceURL: try XCTUnwrap(URL(string: "https://example.test/archive.bin")),
+            sourceKind: .directURL,
+            backend: .urlSession,
+            preferredFilename: nil,
+            destinationFolderPath: destinationURL.path,
+            status: .paused
+        )
+        center.downloads = [item]
+        center.resumeDownloads(ids: [item.id])
+
+        for _ in 0 ..< 100 where item.status != .completed {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTAssertEqual(item.status, .completed)
+        XCTAssertEqual(item.fileLocationPath, existingURL.path)
+        XCTAssertEqual(item.bytesWritten, 8)
+        XCTAssertNil(item.taskIdentifier)
+        XCTAssertEqual(try Data(contentsOf: existingURL), Data("existing".utf8))
+
+        await center.shutdownForTermination()
+    }
+
     func testTerminalMediaRecordsDoNotRetainRecoveryDirectories() throws {
         let sourceURL = try XCTUnwrap(URL(string: "https://example.test/video"))
         func makeItem(backend: DownloadBackend = .ytDlp, status: DownloadStatus) -> DownloadItem {

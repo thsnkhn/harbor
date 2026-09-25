@@ -4797,12 +4797,17 @@ final class DownloadCenter {
 
             guard let item = self.item(for: id),
                   item.status == .preparing,
+                  self.isShuttingDown == false,
+                  Task.isCancelled == false,
                   self.cancellationTasks[id] == nil,
                   self.removalTasks[id] == nil else {
                 self.startNextQueuedDownloadsIfNeeded()
                 return
             }
-            guard remoteByteCount == existingFile.byteCount else {
+            guard remoteByteCount == existingFile.byteCount,
+                  let currentFile = self.existingDestinationFile(for: item),
+                  currentFile.url == existingFile.url,
+                  currentFile.byteCount == existingFile.byteCount else {
                 self.startDirectDownload(item, skippingExistingFileCheck: true)
                 return
             }

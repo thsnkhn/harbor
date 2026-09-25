@@ -4,6 +4,29 @@ import XCTest
 
 @MainActor
 final class AppSettingsAndTorrentWatchTests: XCTestCase {
+    func testDownloadStagingPathPersistsAndDefaultRestores() {
+        let suiteName = "HarborTests.DownloadStaging.\(UUID().uuidString)"
+        let userDefaults = UserDefaults(suiteName: suiteName)!
+        userDefaults.removePersistentDomain(forName: suiteName)
+        defer { userDefaults.removePersistentDomain(forName: suiteName) }
+
+        let settings = AppSettingsStore(userDefaults: userDefaults)
+        XCTAssertFalse(settings.usesCustomDownloadStaging)
+        XCTAssertEqual(
+            settings.directDownloadRecoveryURL.deletingLastPathComponent(),
+            HarborApplicationSupport.directoryURL()
+        )
+
+        settings.downloadStagingPath = "/tmp/HarborStaging"
+        let restored = AppSettingsStore(userDefaults: userDefaults)
+        XCTAssertTrue(restored.usesCustomDownloadStaging)
+        XCTAssertEqual(restored.directDownloadRecoveryURL.path, "/tmp/HarborStaging/DirectDownloadRecovery")
+        XCTAssertEqual(restored.completedHandoffStagingURL.path, "/tmp/HarborStaging/CompletedDownloadHandoffs")
+
+        restored.useDefaultDownloadStaging()
+        XCTAssertFalse(AppSettingsStore(userDefaults: userDefaults).usesCustomDownloadStaging)
+    }
+
     func testTorrentBlocklistSettingsPersistAndAcceptedStatusUpdates() {
         let suiteName = "HarborTests.Blocklist.\(UUID().uuidString)"
         let userDefaults = UserDefaults(suiteName: suiteName)!
