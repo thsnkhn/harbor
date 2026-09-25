@@ -17,13 +17,10 @@ struct HarborApp: App {
                 completedHandoffDirectoryURL: settings.completedHandoffStagingURL
             )
         )
-        _updater = StateObject(
-            wrappedValue: PreviewRuntime.isActive || HarborApplicationSupport.isRunningUnitTests
-                ? AppUpdater.preview(canCheckForUpdates: false)
-                : AppUpdater(
-                    checksForUpdatesOnLaunch: HarborTestRuntime.disablesAutomaticUpdateCheck == false
-                )
-        )
+        _updater = StateObject(wrappedValue: AppUpdater(
+            checksForUpdatesOnLaunch: HarborTestRuntime.disablesAutomaticUpdateCheck == false,
+            startsUpdater: HarborApplicationSupport.isRunningUnitTests == false
+        ))
     }
 
     var body: some Scene {
@@ -35,8 +32,7 @@ struct HarborApp: App {
                 .task {
                     appDelegate.center = center
 
-                    guard PreviewRuntime.isActive == false,
-                          HarborApplicationSupport.isRunningUnitTests == false else {
+                    guard HarborApplicationSupport.isRunningUnitTests == false else {
                         return
                     }
 

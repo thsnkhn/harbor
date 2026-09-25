@@ -1260,8 +1260,3 @@ struct DownloadDetailSection<Content: View>: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
-
-#Preview("Download Detail") {
-    DownloadDetailView(center: HarborPreviewFixtures.makeCenter())
-        .frame(width: 420, height: 760)
-}

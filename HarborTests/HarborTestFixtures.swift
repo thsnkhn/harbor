@@ -1,10 +1,10 @@
 import Foundation
-import SwiftUI
+@testable import Harbor
 
 @MainActor
-enum HarborPreviewFixtures {
+enum HarborTestFixtures {
     static func makeSettings() -> AppSettingsStore {
-        let suiteName = "HarborPreviewDefaults"
+        let suiteName = "HarborTestDefaults"
         let userDefaults = UserDefaults(suiteName: suiteName) ?? .standard
         userDefaults.removePersistentDomain(forName: suiteName)
 
@@ -47,7 +47,7 @@ enum HarborPreviewFixtures {
             startedAt: now.addingTimeInterval(-3_420),
             finishedAt: now.addingTimeInterval(-600),
             updatedAt: now.addingTimeInterval(-120),
-            backendIdentifier: "preview-torrent",
+            backendIdentifier: "test-torrent",
             metadataName: "Cold Storage (2026) [1080p] [WEBRip] [x265]",
             shouldSeedAfterDownload: true
         )
@@ -85,7 +85,7 @@ enum HarborPreviewFixtures {
             uploadBytesPerSecond: 420 * 1_024,
             startedAt: now.addingTimeInterval(-840),
             updatedAt: now.addingTimeInterval(-8),
-            backendIdentifier: "preview-magnet",
+            backendIdentifier: "test-magnet",
             metadataName: "Ubuntu ISO"
         )
 

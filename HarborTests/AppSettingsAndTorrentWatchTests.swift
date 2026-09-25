@@ -178,13 +178,13 @@ final class AppSettingsAndTorrentWatchTests: XCTestCase {
     }
 
     func testSleepPreventionTracksOnlyActiveDownloads() async {
-        let settings = HarborPreviewFixtures.makeSettings()
+        let settings = HarborTestFixtures.makeSettings()
         let sleepPreventionService = FakeSleepPreventionService()
         let center = DownloadCenter(
             settings: settings,
             sleepPreventionService: sleepPreventionService
         )
-        let item = HarborPreviewFixtures.sampleDownloads()[0]
+        let item = HarborTestFixtures.sampleDownloads()[0]
 
         settings.preventSleepWhileDownloading = true
         center.downloads = [item]

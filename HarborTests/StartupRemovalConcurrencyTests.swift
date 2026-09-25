@@ -7,7 +7,7 @@ extension HarborModelAndSafetyTests {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("HarborCancelledStartup-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: root) }
-        let settings = HarborPreviewFixtures.makeSettings()
+        let settings = HarborTestFixtures.makeSettings()
         settings.startDownloadsAutomatically = false
         let persistence = DownloadPersistence(directoryURL: root.appendingPathComponent("Records"))
         let savedItem = DownloadItem(

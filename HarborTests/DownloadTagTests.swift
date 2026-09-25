@@ -82,7 +82,7 @@ final class DownloadTagTests: XCTestCase {
     private func makeCenter() -> DownloadCenter {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("HarborTagTests-\(UUID())")
         addTeardownBlock { try? FileManager.default.removeItem(at: root) }
-        return DownloadCenter(settings: HarborPreviewFixtures.makeSettings(),
+        return DownloadCenter(settings: HarborTestFixtures.makeSettings(),
                               persistence: DownloadPersistence(directoryURL: root),
                               recordSaveOperation: { _, _, _ in })
     }

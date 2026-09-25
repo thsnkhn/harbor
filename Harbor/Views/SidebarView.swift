@@ -32,8 +32,3 @@ struct SidebarView: View {
         .navigationTitle("Downloads")
     }
 }
-
-#Preview("Sidebar") {
-    SidebarView(center: HarborPreviewFixtures.makeCenter())
-        .frame(width: 260, height: 760)
-}

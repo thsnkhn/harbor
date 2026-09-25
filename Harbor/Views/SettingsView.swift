@@ -47,10 +47,3 @@ struct SettingsView: View {
         .scenePadding()
     }
 }
-
-#Preview("Settings") {
-    SettingsView(
-        settings: HarborPreviewFixtures.makeSettings(),
-        updater: AppUpdater.preview()
-    )
-}

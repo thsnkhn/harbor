@@ -7,7 +7,7 @@ import XCTest
 @MainActor
 final class HarborModelAndSafetyTests: XCTestCase {
     func testSingleDownloadActionsDoNotObserveOtherDownloadsProgress() {
-        let center = HarborPreviewFixtures.makeCenter()
+        let center = HarborTestFixtures.makeCenter()
         let target = center.downloads[0]
         let other = center.downloads[1]
         let changed = OSAllocatedUnfairLock(initialState: false)
@@ -26,7 +26,7 @@ final class HarborModelAndSafetyTests: XCTestCase {
     }
 
     func testSingleDownloadActionsStillRespectSearchAndFilter() {
-        let center = HarborPreviewFixtures.makeCenter()
+        let center = HarborTestFixtures.makeCenter()
         let target = center.downloads[0]
         XCTAssertTrue(center.canPauseDownloads(ids: [target.id]))
         center.searchText = "no-matching-download"
@@ -37,9 +37,9 @@ final class HarborModelAndSafetyTests: XCTestCase {
     }
 
     func testSpeedColumnShowsOnlyOverridesThatDifferFromGlobalLimits() {
-        let settings = HarborPreviewFixtures.makeSettings()
+        let settings = HarborTestFixtures.makeSettings()
         let center = DownloadCenter(settings: settings)
-        let item = HarborPreviewFixtures.sampleDownloads()[0]
+        let item = HarborTestFixtures.sampleDownloads()[0]
         settings.trafficMode = .unlimited
         XCTAssertNil(center.differingTrafficModeOverride(for: item))
 
@@ -77,7 +77,7 @@ final class HarborModelAndSafetyTests: XCTestCase {
             .appendingPathComponent("HarborExternalSourceTests-\(UUID().uuidString)", isDirectory: true)
         defer { try? fileManager.removeItem(at: testRoot) }
 
-        let settings = HarborPreviewFixtures.makeSettings()
+        let settings = HarborTestFixtures.makeSettings()
         let center = DownloadCenter(
             settings: settings,
             persistence: DownloadPersistence(

@@ -8,19 +8,18 @@ final class AppUpdater: ObservableObject {
     @Published private(set) var canCheckForUpdates: Bool
 
     private let currentBundle: Bundle
-    private let previewVersionLabel: String?
     private let updaterController: SPUStandardUpdaterController?
     private var didCheckForUpdatesOnLaunch = false
     private var observations: [NSKeyValueObservation] = []
 
     init(
         bundle: Bundle = .main,
-        checksForUpdatesOnLaunch: Bool = true
+        checksForUpdatesOnLaunch: Bool = true,
+        startsUpdater: Bool = true
     ) {
         self.currentBundle = bundle
-        self.previewVersionLabel = nil
 
-        guard PreviewRuntime.isActive == false else {
+        guard startsUpdater else {
             self.updaterController = nil
             self.automaticallyChecksForUpdates = false
             self.canCheckForUpdates = false
@@ -43,24 +42,8 @@ final class AppUpdater: ObservableObject {
         }
     }
 
-    private init(
-        previewVersionLabel: String,
-        automaticallyChecksForUpdates: Bool,
-        canCheckForUpdates: Bool
-    ) {
-        self.currentBundle = .main
-        self.previewVersionLabel = previewVersionLabel
-        self.updaterController = nil
-        self.automaticallyChecksForUpdates = automaticallyChecksForUpdates
-        self.canCheckForUpdates = canCheckForUpdates
-    }
-
     var currentVersionLabel: String {
-        if let previewVersionLabel {
-            return previewVersionLabel
-        }
-
-        return Self.versionLabel(bundle: currentBundle)
+        Self.versionLabel(bundle: currentBundle)
     }
 
     func checkForUpdates() {
@@ -81,17 +64,6 @@ final class AppUpdater: ObservableObject {
     func setAutomaticallyChecksForUpdates(_ newValue: Bool) {
         automaticallyChecksForUpdates = newValue
         updaterController?.updater.automaticallyChecksForUpdates = newValue
-    }
-
-    static func preview(
-        automaticallyChecksForUpdates: Bool = true,
-        canCheckForUpdates: Bool = true
-    ) -> AppUpdater {
-        AppUpdater(
-            previewVersionLabel: "1.0 (1)",
-            automaticallyChecksForUpdates: automaticallyChecksForUpdates,
-            canCheckForUpdates: canCheckForUpdates
-        )
     }
 
     private func installObservers(for updater: SPUUpdater) {
