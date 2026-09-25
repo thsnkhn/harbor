@@ -26,6 +26,7 @@ struct AddDownloadSheet: View {
     @State private var tags: [String] = []
 
     let settings: AppSettingsStore
+    private let shouldStartImmediately: Bool
     let mediaPreviewProvider: @MainActor (URL) async throws -> MediaDownloadMetadata?
     let torrentPreviewProvider: @MainActor (DownloadSourceKind, URL, [RequestHeader]) async throws -> TorrentContentsPreview
     let onSubmit: @MainActor ([AddDownloadRequest]) -> Void
@@ -38,7 +39,6 @@ struct AddDownloadSheet: View {
     @State private var torrentFileURL: URL?
     @State private var destinationPath: String
     @State private var hasCustomizedDestination = false
-    @State private var shouldStartImmediately: Bool
     @State private var requestHeaders: [RequestHeader] = []
     @State private var isRequestHeadersEditorPresented = false
     @State private var validationMessage: String?
@@ -68,6 +68,7 @@ struct AddDownloadSheet: View {
     ) {
         self.availableTags = availableTags
         self.settings = settings
+        self.shouldStartImmediately = draft.shouldStartImmediately
         self.mediaPreviewProvider = mediaPreviewProvider
         self.torrentPreviewProvider = torrentPreviewProvider
         self.onSubmit = onSubmit
@@ -75,28 +76,29 @@ struct AddDownloadSheet: View {
         _sourceURLText = State(initialValue: draft.sourceURLText)
         _torrentFileURL = State(initialValue: draft.torrentFileURL)
         _destinationPath = State(initialValue: draft.destinationFolderURL.path)
-        _shouldStartImmediately = State(initialValue: draft.shouldStartImmediately)
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
-            VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 16) {
                 Text("Add Download")
                     .font(.title2.weight(.semibold))
                     .accessibilityIdentifier(HarborAccessibility.addSheet)
-                Text("Paste one or more links, a media post URL, a magnet link, or choose a `.torrent` file. Add several at once by putting one link per line.")
-                    .foregroundStyle(.secondary)
-            }
 
-            Form {
+                Spacer(minLength: 0)
+
                 Picker("Source", selection: $entryMode) {
                     ForEach(AddDownloadEntryMode.allCases) { mode in
                         Text(mode.title).tag(mode)
                     }
                 }
                 .pickerStyle(.segmented)
+                .labelsHidden()
+                .frame(maxWidth: 300)
                 .accessibilityIdentifier(HarborAccessibility.addSourceMode)
+            }
 
+            Form {
                 if entryMode == .linkOrMagnet {
                     TextField(
                         "Source",
@@ -138,13 +140,7 @@ struct AddDownloadSheet: View {
 
                 destinationPicker
 
-                LabeledContent("Tags") {
-                    DownloadTagEditor(tags: $tags, suggestions: availableTags)
-                        .frame(minWidth: 160)
-                }
-
-                Toggle("Start immediately", isOn: $shouldStartImmediately)
-                    .accessibilityIdentifier(HarborAccessibility.addStartImmediately)
+                tagsSection
 
                 advancedSettingsSection
             }
@@ -511,12 +507,13 @@ struct AddDownloadSheet: View {
                 }
                 .fixedSize()
 
-                Button("Use Default") {
-                    destinationPath = sourceAwareDefaultDestinationPath
-                    hasCustomizedDestination = false
+                if destinationPath != sourceAwareDefaultDestinationPath {
+                    Button("Use Default") {
+                        destinationPath = sourceAwareDefaultDestinationPath
+                        hasCustomizedDestination = false
+                    }
+                    .fixedSize()
                 }
-                .fixedSize()
-                .disabled(destinationPath == sourceAwareDefaultDestinationPath)
             }
         }
     }
@@ -563,6 +560,19 @@ struct AddDownloadSheet: View {
                 .padding(.top, 8)
                 .padding(.leading, 24)
             }
+        }
+        .disclosureGroupStyle(AdvancedSettingsDisclosureStyle())
+    }
+
+    private var tagsSection: some View {
+        DisclosureGroup("Tags") {
+            DownloadTagChips(
+                tags: $tags,
+                availableTags: availableTags,
+                showsAvailableTags: true
+            )
+            .padding(.top, 10)
+            .padding(.leading, 24)
         }
         .disclosureGroupStyle(AdvancedSettingsDisclosureStyle())
     }

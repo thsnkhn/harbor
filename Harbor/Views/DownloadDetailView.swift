@@ -300,7 +300,13 @@ private struct DownloadHeader: View {
 
                 sourceLine
 
-                DownloadInspectorTags(item: item, center: center)
+                DownloadTagChips(
+                    tags: Binding(
+                        get: { item.tags },
+                        set: { center.setTags($0, for: item.id) }
+                    ),
+                    availableTags: center.availableTags
+                )
                     .id(item.id)
             }
             .frame(maxWidth: .infinity, alignment: .leading)

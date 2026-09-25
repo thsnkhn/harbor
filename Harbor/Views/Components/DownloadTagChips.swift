@@ -1,20 +1,21 @@
 import SwiftUI
 
-struct DownloadInspectorTags: View {
-    let item: DownloadItem
-    let center: DownloadCenter
+struct DownloadTagChips: View {
+    @Binding var tags: [String]
+    let availableTags: [String]
+    var showsAvailableTags = false
     @State private var isEditing = false
     @State private var tagName = ""
 
     var body: some View {
         TagFlowLayout {
-            ForEach(item.tags, id: \.self) { tag in
+            ForEach(tags, id: \.self) { tag in
                 HStack(spacing: 5) {
                     Text("#" + tag)
                         .lineLimit(1)
                         .truncationMode(.middle)
                     Button {
-                        center.setTags(item.tags.filter { $0 != tag }, for: item.id)
+                        tags.removeAll { $0 == tag }
                     } label: {
                         Image(systemName: "xmark")
                             .font(.system(size: 8, weight: .semibold))
@@ -24,6 +25,22 @@ struct DownloadInspectorTags: View {
                 }
                 .modifier(DownloadTagStyle())
                 .help("#" + tag)
+            }
+
+            if showsAvailableTags {
+                ForEach(unappliedTags, id: \.self) { tag in
+                    Button {
+                        tags = DownloadTags.normalized(tags + [tag])
+                    } label: {
+                        Text("#" + tag)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                            .modifier(DownloadTagStyle())
+                    }
+                    .buttonStyle(.plain)
+                    .help("Add #" + tag)
+                    .accessibilityLabel("Add tag \(tag)")
+                }
             }
 
             Button { tagName = ""; isEditing = true } label: {
@@ -80,15 +97,21 @@ struct DownloadInspectorTags: View {
     private var suggestedTags: [String] {
         let query = tagName.trimmingCharacters(in: .whitespacesAndNewlines)
             .trimmingCharacters(in: CharacterSet(charactersIn: "#"))
-        let applied = Set(item.tags.map(DownloadTags.key))
-        return center.availableTags.filter {
-            !applied.contains(DownloadTags.key($0)) && (query.isEmpty || $0.localizedStandardContains(query))
+        return unappliedTags.filter {
+            query.isEmpty || $0.localizedStandardContains(query)
+        }
+    }
+
+    private var unappliedTags: [String] {
+        let applied = Set(tags.map(DownloadTags.key))
+        return availableTags.filter {
+            !applied.contains(DownloadTags.key($0))
         }
     }
 
     private func addTag() {
         guard let tag = DownloadTags.normalized([tagName]).first else { return }
-        center.setTags(item.tags + [tag], for: item.id)
+        tags = DownloadTags.normalized(tags + [tag])
         isEditing = false
     }
 

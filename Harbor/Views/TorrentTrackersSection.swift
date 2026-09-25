@@ -8,9 +8,10 @@ struct TorrentTrackersSection: View {
     @State private var trackerURL = ""
     @State private var errorMessage: String?
     @State private var isWorking = false
+    @State private var isExpanded = false
 
     var body: some View {
-        DownloadDetailSection(title: "Trackers") {
+        DisclosureGroup(isExpanded: $isExpanded) {
             VStack(alignment: .leading, spacing: 12) {
                 controls
 
@@ -45,10 +46,15 @@ struct TorrentTrackersSection: View {
                         .foregroundStyle(.red)
                 }
             }
+            .padding(.top, 8)
+            .task(id: item.backendIdentifier) {
+                await loadTrackers()
+            }
+        } label: {
+            Text("Trackers")
+                .font(.headline)
         }
-        .task(id: item.backendIdentifier) {
-            await loadTrackers()
-        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var controls: some View {
