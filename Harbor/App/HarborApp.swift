@@ -10,7 +10,13 @@ struct HarborApp: App {
     init() {
         let settings = AppSettingsStore(userDefaults: HarborTestRuntime.userDefaults)
         _settings = State(initialValue: settings)
-        _center = State(initialValue: DownloadCenter(settings: settings))
+        _center = State(
+            initialValue: DownloadCenter(
+                settings: settings,
+                directRecoveryDirectoryURL: settings.directDownloadRecoveryURL,
+                completedHandoffDirectoryURL: settings.completedHandoffStagingURL
+            )
+        )
         _updater = StateObject(
             wrappedValue: PreviewRuntime.isActive || HarborApplicationSupport.isRunningUnitTests
                 ? AppUpdater.preview(canCheckForUpdates: false)

@@ -89,6 +89,7 @@ final class DownloadCenter {
         BrowserDownloadCoordinator,
         UUID
     ) throws -> Void
+    typealias RemoteByteCountOperation = @Sendable (URL, [RequestHeader]) async -> Int64?
     typealias RecordSaveOperation = DownloadRecordStore.SaveOperation
 
     @ObservationIgnored private let settings: AppSettingsStore
@@ -109,6 +110,7 @@ final class DownloadCenter {
     @ObservationIgnored private let torrentShutdownOperation: TorrentShutdownOperation
     @ObservationIgnored private let browserQuiescenceOperation: BrowserQuiescenceOperation
     @ObservationIgnored private let urlSessionCleanupOperation: URLSessionCleanupOperation
+    @ObservationIgnored private let remoteByteCountOperation: RemoteByteCountOperation
     @ObservationIgnored private let completedHandoffStore: CompletedDownloadHandoffStore
     @ObservationIgnored private let sleepPreventionService: any DownloadSleepPreventing
     @ObservationIgnored private let quickLookPreviewService: any QuickLookPreviewing
@@ -141,6 +143,7 @@ final class DownloadCenter {
     @ObservationIgnored private var readyDirectRetries: [UUID: Bool] = [:]
     @ObservationIgnored private var directPauseTasks: [UUID: Task<Void, Never>] = [:]
     @ObservationIgnored private var directAttemptStates: [UUID: AttemptState] = [:]
+    @ObservationIgnored private var directPreflightTasks: [UUID: Task<Void, Never>] = [:]
     @ObservationIgnored private var pendingDirectPauseFailures: [UUID: PendingDirectPauseFailure] = [:]
     @ObservationIgnored private var completedDirectPauseResults: [UUID: CompletedDirectPauseResult] = [:]
     @ObservationIgnored private var browserCancellationTasks: [UUID: Task<Void, Never>] = [:]
@@ -256,6 +259,12 @@ final class DownloadCenter {
             try browserCoordinator.discardRecoveryDataOrThrow(id: id)
             try coordinator.discardRecoveryDataOrThrow(id: id)
         },
+        remoteByteCountOperation: @escaping RemoteByteCountOperation = { sourceURL, requestHeaders in
+            await DownloadCenter.remoteByteCount(
+                sourceURL: sourceURL,
+                requestHeaders: requestHeaders
+            )
+        },
         recordSaveOperation: @escaping RecordSaveOperation = { persistence, records, revision in
             try persistence.save(records, revision: revision)
         }
@@ -300,6 +309,7 @@ final class DownloadCenter {
         self.torrentShutdownOperation = torrentShutdownOperation
         self.browserQuiescenceOperation = browserQuiescenceOperation
         self.urlSessionCleanupOperation = urlSessionCleanupOperation
+        self.remoteByteCountOperation = remoteByteCountOperation
         self.completedHandoffStore = completedHandoffStore
         self.mediaService = mediaService ?? MediaDownloadService { [weak self] attemptIdentifier, event in
             Task { @MainActor [weak self] in
@@ -347,6 +357,7 @@ final class DownloadCenter {
     deinit {
         persistTask?.cancel()
         torrentRefreshTask?.cancel()
+        directPreflightTasks.values.forEach { $0.cancel() }
         directRetryTasks.values.forEach { $0.cancel() }
         orphanedTorrentCleanupTasks.values.forEach { $0.cancel() }
         networkBindingTask?.cancel()
@@ -2199,6 +2210,7 @@ final class DownloadCenter {
         pendingTorrentRefresh?.cancel()
         mediaStartTasks.values.forEach { $0.cancel() }
         torrentStartTasks.values.forEach { $0.cancel() }
+        directPreflightTasks.values.forEach { $0.cancel() }
         directRetryTasks.values.forEach { $0.cancel() }
         directRetryTasks.removeAll()
         readyDirectRetries.removeAll()
@@ -2456,6 +2468,7 @@ final class DownloadCenter {
         pendingTorrentRefresh?.cancel()
         mediaStartTasks.values.forEach { $0.cancel() }
         torrentStartTasks.values.forEach { $0.cancel() }
+        directPreflightTasks.values.forEach { $0.cancel() }
         directRetryTasks.values.forEach { $0.cancel() }
         directRetryTasks.removeAll()
         readyDirectRetries.removeAll()
@@ -4726,11 +4739,132 @@ final class DownloadCenter {
         }
     }
 
+    private struct ExistingDestinationFile {
+        let url: URL
+        let byteCount: Int64
+    }
+
+    /// A same-named file already sitting in the save location, placed by an
+    /// earlier download or another tool. Harbor never overwrites one, so
+    /// without this check a repeated add re-transfers every byte and then
+    /// saves a second copy under a collision-safe name.
+    private func existingDestinationFile(for item: DownloadItem) -> ExistingDestinationFile? {
+        let filename = destinationResolver.resolvedFilename(
+            custom: item.preferredFilename,
+            responseSuggestedFilename: nil,
+            sourceURL: item.sourceURL
+        )
+        let candidateURL = URL(
+            fileURLWithPath: item.destinationFolderPath,
+            isDirectory: true
+        ).appendingPathComponent(filename)
+
+        guard let values = try? candidateURL.resourceValues(
+            forKeys: [.fileSizeKey, .isRegularFileKey, .isSymbolicLinkKey]
+        ),
+            values.isRegularFile == true,
+            values.isSymbolicLink != true,
+            let byteCount = values.fileSize,
+            byteCount > 0 else {
+            return nil
+        }
+
+        return ExistingDestinationFile(url: candidateURL, byteCount: Int64(byteCount))
+    }
+
+    /// Confirms the local file is the whole remote file before adopting it.
+    /// Equal length is the only evidence a plain HTTP source offers, so a
+    /// mismatch falls through to a normal transfer instead of trusting the
+    /// filename alone.
+    private func beginExistingFilePreflight(
+        for item: DownloadItem,
+        existingFile: ExistingDestinationFile
+    ) {
+        let id = item.id
+        let sourceURL = item.sourceURL
+        let requestHeaders = item.requestHeaders
+        let measureRemoteByteCount = remoteByteCountOperation
+        setStatus(for: item, to: .preparing)
+        item.updatedAt = .now
+        schedulePersist()
+
+        directPreflightTasks[id] = Task { @MainActor [weak self] in
+            let remoteByteCount = await measureRemoteByteCount(sourceURL, requestHeaders)
+            guard let self else {
+                return
+            }
+            self.directPreflightTasks.removeValue(forKey: id)
+
+            guard let item = self.item(for: id),
+                  item.status == .preparing,
+                  self.cancellationTasks[id] == nil,
+                  self.removalTasks[id] == nil else {
+                self.startNextQueuedDownloadsIfNeeded()
+                return
+            }
+            guard remoteByteCount == existingFile.byteCount else {
+                self.startDirectDownload(item, skippingExistingFileCheck: true)
+                return
+            }
+
+            self.applyExistingFileCompletion(existingFile, to: item)
+            self.schedulePersist()
+            self.startNextQueuedDownloadsIfNeeded()
+        }
+    }
+
+    private func applyExistingFileCompletion(
+        _ existingFile: ExistingDestinationFile,
+        to item: DownloadItem
+    ) {
+        item.fileLocationPath = existingFile.url.path
+        item.preferredFilename = existingFile.url.lastPathComponent
+        item.progress = 1
+        item.expectedBytes = existingFile.byteCount
+        item.bytesWritten = existingFile.byteCount
+        item.finishedAt = item.finishedAt ?? .now
+        item.lastError = nil
+        item.taskIdentifier = nil
+        item.speedBytesPerSecond = 0
+        item.uploadBytesPerSecond = 0
+        item.updatedAt = .now
+        item.completionNotificationDelivered = true
+        setStatus(for: item, to: .completed)
+    }
+
+    private nonisolated static func remoteByteCount(
+        sourceURL: URL,
+        requestHeaders: [RequestHeader]
+    ) async -> Int64? {
+        var request = URLRequest(url: sourceURL)
+        request.httpMethod = "HEAD"
+        requestHeaders.apply(to: &request)
+
+        guard let (_, response) = try? await URLSession.shared.data(for: request),
+              let httpResponse = response as? HTTPURLResponse,
+              (200 ..< 300).contains(httpResponse.statusCode),
+              httpResponse.expectedContentLength > 0 else {
+            return nil
+        }
+
+        return httpResponse.expectedContentLength
+    }
+
     private func startDirectDownload(
         _ item: DownloadItem,
-        restartingFromBeginning: Bool = false
+        restartingFromBeginning: Bool = false,
+        skippingExistingFileCheck: Bool = false
     ) {
-        guard directAttemptStates[item.id] == nil else {
+        guard directAttemptStates[item.id] == nil,
+              directPreflightTasks[item.id] == nil else {
+            return
+        }
+
+        if skippingExistingFileCheck == false,
+           restartingFromBeginning == false,
+           item.bytesWritten == 0,
+           let existingFile = existingDestinationFile(for: item) {
+            beginExistingFilePreflight(for: item, existingFile: existingFile)
             return
         }
         if restartingFromBeginning {
@@ -6028,6 +6162,7 @@ final class DownloadCenter {
         ids.formUnion(browserCancellationTasks.keys)
         ids.formUnion(mediaStartTasks.keys)
         ids.formUnion(torrentStartTasks.keys)
+        ids.formUnion(directPreflightTasks.keys)
         ids.formUnion(directPauseTasks.keys)
         ids.formUnion(mediaPauseTasks.keys)
         ids.formUnion(torrentPauseTasks.keys)
