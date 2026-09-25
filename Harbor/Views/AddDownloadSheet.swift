@@ -80,24 +80,6 @@ struct AddDownloadSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
-            HStack(spacing: 16) {
-                Text("Add Download")
-                    .font(.title2.weight(.semibold))
-                    .accessibilityIdentifier(HarborAccessibility.addSheet)
-
-                Spacer(minLength: 0)
-
-                Picker("Source", selection: $entryMode) {
-                    ForEach(AddDownloadEntryMode.allCases) { mode in
-                        Text(mode.title).tag(mode)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .frame(maxWidth: 300)
-                .accessibilityIdentifier(HarborAccessibility.addSourceMode)
-            }
-
             Form {
                 if entryMode == .linkOrMagnet {
                     TextField(
@@ -180,6 +162,21 @@ struct AddDownloadSheet: View {
         }
         .padding(24)
         .frame(minWidth: 540, idealWidth: 620, maxWidth: 720)
+        .accessibilityIdentifier(HarborAccessibility.addSheet)
+        .background(AddDownloadSheetTitleHider())
+        .navigationTitle("")
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Picker("Source", selection: $entryMode) {
+                    Text("URL").tag(AddDownloadEntryMode.linkOrMagnet)
+                    Text("Torrent").tag(AddDownloadEntryMode.torrentFile)
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .frame(width: 220)
+                .accessibilityIdentifier(HarborAccessibility.addSourceMode)
+            }
+        }
         .onAppear {
             if entryMode == .linkOrMagnet {
                 focusedField = .sourceURL
@@ -1246,6 +1243,21 @@ struct AddDownloadSheet: View {
 
         return suffixes.contains { host == $0 || host.hasSuffix(".\($0)") }
             || host.contains("pinterest.")
+    }
+}
+
+private struct AddDownloadSheetTitleHider: NSViewRepresentable {
+    func makeNSView(context: Context) -> TitleHidingView {
+        TitleHidingView()
+    }
+
+    func updateNSView(_ nsView: TitleHidingView, context: Context) {}
+
+    final class TitleHidingView: NSView {
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            window?.titleVisibility = .hidden
+        }
     }
 }
 
