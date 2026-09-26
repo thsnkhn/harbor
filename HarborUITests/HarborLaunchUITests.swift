@@ -11,6 +11,9 @@ final class HarborLaunchUITests: HarborUITestCase {
         XCTAssertTrue(app.outlines["harbor.sidebar"].exists || app.otherElements["harbor.sidebar"].exists)
 
         openAddSheet()
+        let sourceMode = app.descendants(matching: .any)["add-download.source-mode"].firstMatch
+        XCTAssertTrue(sourceMode.waitForExistence(timeout: 5))
+        XCTAssertTrue(sourceMode.isHittable)
         XCTAssertTrue(app.textFields["add-download.source"].exists)
         XCTAssertTrue(app.buttons["add-download.submit"].exists)
         app.buttons["add-download.cancel"].click()

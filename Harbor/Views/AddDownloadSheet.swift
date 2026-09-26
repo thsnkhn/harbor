@@ -36,6 +36,7 @@ struct AddDownloadSheet: View {
 
     @State private var entryMode: AddDownloadEntryMode
     @State private var sourceURLText: String
+    @State private var sourceFieldFrame: CGRect = .zero
     @State private var torrentFileURL: URL?
     @State private var destinationPath: String
     @State private var hasCustomizedDestination = false
@@ -80,51 +81,63 @@ struct AddDownloadSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
+            sourceModePicker
+            .frame(width: 220)
+            .frame(maxWidth: .infinity)
+            .accessibilityIdentifier(HarborAccessibility.addSourceMode)
+
             Form {
-                if entryMode == .linkOrMagnet {
-                    TextField(
-                        "Source",
-                        text: $sourceURLText,
-                        prompt: Text("https://example.com/file.zip, social link, or magnet:?xt=..."),
-                        axis: .vertical
-                    )
-                    .labelsHidden()
-                    .lineLimit(1...8)
-                    .accessibilityIdentifier(HarborAccessibility.addSource)
-                    .focused($focusedField, equals: Field.sourceURL)
-                    .onChange(of: sourceURLText) {
-                        scheduleMediaPreviewRefresh()
-                        updateDestinationForDetectedSourceIfNeeded()
-                    }
+                Section {
+                    if entryMode == .linkOrMagnet {
+                        TextField(
+                            "Source",
+                            text: $sourceURLText,
+                            prompt: Text("Add URL(s) or magnet link"),
+                            axis: .vertical
+                        )
+                        .labelsHidden()
+                        .textFieldStyle(.plain)
+                        .lineLimit(1...8)
+                        .accessibilityIdentifier(HarborAccessibility.addSource)
+                        .focused($focusedField, equals: Field.sourceURL)
+                        .onGeometryChange(for: CGRect.self) { geometry in
+                            geometry.frame(in: .named("add-download-sheet"))
+                        } action: { sourceFieldFrame = $0 }
+                        .onChange(of: sourceURLText) {
+                            scheduleMediaPreviewRefresh()
+                            updateDestinationForDetectedSourceIfNeeded()
+                        }
 
-                    if isBatchEntry {
-                        batchSummaryRow
+                        if isBatchEntry {
+                            batchSummaryRow
+                        } else {
+                            mediaPreviewRows
+                        }
                     } else {
-                        mediaPreviewRows
-                    }
-                } else {
-                    LabeledContent("Torrent File") {
-                        HStack(spacing: 8) {
-                            Text(torrentFileURL?.path ?? "No file selected")
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                                .textSelection(.enabled)
+                        LabeledContent("Torrent File") {
+                            HStack(spacing: 8) {
+                                Text(torrentFileURL?.path ?? "No file selected")
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                                    .textSelection(.enabled)
 
-                            Button("Choose…") {
-                                torrentFileURL = TorrentFileSelectionService.chooseTorrentFile(
-                                    startingAt: URL(fileURLWithPath: destinationPath, isDirectory: true)
-                                )
+                                Button("Choose…") {
+                                    torrentFileURL = TorrentFileSelectionService.chooseTorrentFile(
+                                        startingAt: URL(fileURLWithPath: destinationPath, isDirectory: true)
+                                    )
+                                }
+                                .accessibilityIdentifier(HarborAccessibility.addChooseTorrent)
                             }
-                            .accessibilityIdentifier(HarborAccessibility.addChooseTorrent)
                         }
                     }
                 }
+                Section {
+                    destinationPicker
 
-                destinationPicker
+                    tagsSection
 
-                tagsSection
-
-                advancedSettingsSection
+                    advancedSettingsSection
+                }
             }
             .formStyle(.grouped)
             .padding(.horizontal, -Layout.groupedFormHorizontalExpansion)
@@ -164,22 +177,17 @@ struct AddDownloadSheet: View {
         .frame(minWidth: 540, idealWidth: 620, maxWidth: 720)
         .accessibilityIdentifier(HarborAccessibility.addSheet)
         .background(AddDownloadSheetTitleHider())
-        .navigationTitle("")
-        .toolbar {
-            ToolbarItem(placement: .principal) {
-                Picker("Source", selection: $entryMode) {
-                    Text("URL").tag(AddDownloadEntryMode.linkOrMagnet)
-                    Text("Torrent").tag(AddDownloadEntryMode.torrentFile)
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .frame(width: 220)
-                .accessibilityIdentifier(HarborAccessibility.addSourceMode)
+        .coordinateSpace(name: "add-download-sheet")
+        .simultaneousGesture(SpatialTapGesture().onEnded { tap in
+            if entryMode == .linkOrMagnet,
+               sourceFieldFrame.contains(tap.location) == false {
+                focusedField = nil
             }
-        }
+        })
+        .navigationTitle("")
         .onAppear {
             if entryMode == .linkOrMagnet {
-                focusedField = .sourceURL
+                focusSourceField()
                 scheduleMediaPreviewRefresh()
             }
         }
@@ -192,7 +200,7 @@ struct AddDownloadSheet: View {
             mediaPreviewGeneration += 1
             resetMediaPreview()
             if newMode == .linkOrMagnet {
-                focusedField = .sourceURL
+                focusSourceField()
                 scheduleMediaPreviewRefresh()
             } else {
                 focusedField = nil
@@ -248,6 +256,32 @@ struct AddDownloadSheet: View {
             Text(
                 "The supplied headers contain Cookie or Authorization information. Aria2 Next sends them to each configured HTTP/HTTPS web seed and preserves them on same-origin redirects. It removes them when a redirect changes origin. Proceed?"
             )
+        }
+    }
+
+    @ViewBuilder
+    private var sourceModePicker: some View {
+        if #available(macOS 27.0, *) {
+            sourceModeControl.pickerStyle(.tabs)
+        } else {
+            sourceModeControl.pickerStyle(.segmented)
+        }
+    }
+
+    private var sourceModeControl: some View {
+        Picker("Source", selection: $entryMode) {
+            Text("URL & Magnets").tag(AddDownloadEntryMode.linkOrMagnet)
+            Text("Torrent").tag(AddDownloadEntryMode.torrentFile)
+        }
+        .labelsHidden()
+    }
+
+    private func focusSourceField() {
+        Task { @MainActor in
+            await Task.yield()
+            if entryMode == .linkOrMagnet {
+                focusedField = .sourceURL
+            }
         }
     }
 
@@ -562,16 +596,15 @@ struct AddDownloadSheet: View {
     }
 
     private var tagsSection: some View {
-        DisclosureGroup("Tags") {
+        HStack(spacing: 16) {
+            Text("Tags")
+            Spacer(minLength: 8)
             DownloadTagChips(
                 tags: $tags,
                 availableTags: availableTags,
-                showsAvailableTags: true
+                usesSingleRow: true
             )
-            .padding(.top, 10)
-            .padding(.leading, 24)
         }
-        .disclosureGroupStyle(AdvancedSettingsDisclosureStyle())
     }
 
     private var showsTorrentOptions: Bool {

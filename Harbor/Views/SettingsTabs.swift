@@ -57,20 +57,32 @@ struct DownloadsSettingsTab: View {
             }
 
             Section("Staging") {
-                DestinationFolderRow(
-                    title: "In-Progress Files",
-                    path: settings.downloadStagingRootURL.path,
-                    choose: settings.chooseDownloadStaging,
-                    reveal: settings.revealDownloadStaging
+                Toggle(
+                    "Use custom staging folder",
+                    isOn: Binding(
+                        get: { settings.usesCustomDownloadStaging },
+                        set: { enabled in
+                            if enabled {
+                                settings.enableCustomDownloadStaging()
+                            } else {
+                                settings.useDefaultDownloadStaging()
+                            }
+                        }
+                    )
                 )
 
                 if settings.usesCustomDownloadStaging {
-                    Button("Use Default Location", action: settings.useDefaultDownloadStaging)
-                }
+                    DestinationFolderRow(
+                        title: "In-Progress Files",
+                        path: settings.downloadStagingRootURL.path,
+                        choose: settings.chooseDownloadStaging,
+                        reveal: settings.revealDownloadStaging
+                    )
 
-                Text("Harbor writes downloads here before moving them to a save location. A folder on the same volume as the save location avoids copying every finished file between volumes. Restart Harbor to apply a change.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
+                    Text("A folder on the save volume avoids copying finished downloads between volumes. Restart Harbor to apply changes.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
             }
 
             Section("Proxy") {

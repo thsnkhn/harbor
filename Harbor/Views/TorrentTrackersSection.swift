@@ -52,7 +52,7 @@ struct TorrentTrackersSection: View {
             }
         } label: {
             Text("Trackers")
-                .font(.headline)
+                .font(.subheadline.weight(.medium))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }

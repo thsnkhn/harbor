@@ -3,12 +3,12 @@ import SwiftUI
 struct DownloadTagChips: View {
     @Binding var tags: [String]
     let availableTags: [String]
-    var showsAvailableTags = false
+    var usesSingleRow = false
     @State private var isEditing = false
     @State private var tagName = ""
 
     var body: some View {
-        TagFlowLayout {
+        (usesSingleRow ? AnyLayout(HStackLayout(spacing: 6)) : AnyLayout(TagFlowLayout())) {
             ForEach(tags, id: \.self) { tag in
                 HStack(spacing: 5) {
                     Text("#" + tag)
@@ -25,22 +25,6 @@ struct DownloadTagChips: View {
                 }
                 .modifier(DownloadTagStyle())
                 .help("#" + tag)
-            }
-
-            if showsAvailableTags {
-                ForEach(unappliedTags, id: \.self) { tag in
-                    Button {
-                        tags = DownloadTags.normalized(tags + [tag])
-                    } label: {
-                        Text("#" + tag)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                            .modifier(DownloadTagStyle())
-                    }
-                    .buttonStyle(.plain)
-                    .help("Add #" + tag)
-                    .accessibilityLabel("Add tag \(tag)")
-                }
             }
 
             Button { tagName = ""; isEditing = true } label: {

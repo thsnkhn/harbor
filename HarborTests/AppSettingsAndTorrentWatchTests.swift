@@ -4,7 +4,7 @@ import XCTest
 
 @MainActor
 final class AppSettingsAndTorrentWatchTests: XCTestCase {
-    func testDownloadStagingPathPersistsAndDefaultRestores() {
+    func testCustomStagingDefaultsOffAndCanBeRestored() {
         let suiteName = "HarborTests.DownloadStaging.\(UUID().uuidString)"
         let userDefaults = UserDefaults(suiteName: suiteName)!
         userDefaults.removePersistentDomain(forName: suiteName)
@@ -12,19 +12,36 @@ final class AppSettingsAndTorrentWatchTests: XCTestCase {
 
         let settings = AppSettingsStore(userDefaults: userDefaults)
         XCTAssertFalse(settings.usesCustomDownloadStaging)
+        settings.defaultDestinationPath = "/tmp/HarborTestDownloads"
+        settings.enableCustomDownloadStaging()
+        XCTAssertTrue(settings.usesCustomDownloadStaging)
+        XCTAssertEqual(settings.downloadStagingPath, "/tmp/HarborTestDownloads/Harbor Staging")
+        XCTAssertEqual(settings.downloadStagingRootURL.path, settings.downloadStagingPath)
+        settings.useDefaultDownloadStaging()
         XCTAssertEqual(
             settings.directDownloadRecoveryURL.deletingLastPathComponent(),
             HarborApplicationSupport.directoryURL()
         )
 
         settings.downloadStagingPath = "/tmp/HarborStaging"
+        XCTAssertFalse(settings.usesCustomDownloadStaging)
+        settings.enableCustomDownloadStaging()
         let restored = AppSettingsStore(userDefaults: userDefaults)
         XCTAssertTrue(restored.usesCustomDownloadStaging)
         XCTAssertEqual(restored.directDownloadRecoveryURL.path, "/tmp/HarborStaging/DirectDownloadRecovery")
         XCTAssertEqual(restored.completedHandoffStagingURL.path, "/tmp/HarborStaging/CompletedDownloadHandoffs")
 
         restored.useDefaultDownloadStaging()
-        XCTAssertFalse(AppSettingsStore(userDefaults: userDefaults).usesCustomDownloadStaging)
+        let disabled = AppSettingsStore(userDefaults: userDefaults)
+        XCTAssertFalse(disabled.usesCustomDownloadStaging)
+        XCTAssertEqual(disabled.downloadStagingPath, "/tmp/HarborStaging")
+        XCTAssertEqual(disabled.downloadStagingRootURL, HarborApplicationSupport.directoryURL())
+
+        disabled.enableCustomDownloadStaging()
+        XCTAssertEqual(
+            AppSettingsStore(userDefaults: userDefaults).downloadStagingRootURL.path,
+            "/tmp/HarborStaging"
+        )
     }
 
     func testTorrentBlocklistSettingsPersistAndAcceptedStatusUpdates() {

@@ -105,6 +105,7 @@ final class AppSettingsStore {
         static let networkBindingSelection = "torrentNetworkBindingSelection"
         static let networkBindingDisplayName = "torrentNetworkBindingDisplayName"
         static let downloadStagingPath = "downloadStagingPath"
+        static let customDownloadStagingEnabled = "customDownloadStagingEnabled"
         static let proxyMode = "networkProxyMode"
         static let proxyScheme = "networkProxyScheme"
         static let proxyHost = "networkProxyHost"
@@ -134,10 +135,15 @@ final class AppSettingsStore {
         }
     }
 
-    /// Empty means the default application-support location.
     var downloadStagingPath: String {
         didSet {
             userDefaults.set(downloadStagingPath, forKey: Keys.downloadStagingPath)
+        }
+    }
+
+    private(set) var usesCustomDownloadStaging: Bool {
+        didSet {
+            userDefaults.set(usesCustomDownloadStaging, forKey: Keys.customDownloadStagingEnabled)
         }
     }
 
@@ -395,7 +401,10 @@ final class AppSettingsStore {
             ?? URL(fileURLWithPath: regularDestinationPath, isDirectory: true)
                 .appendingPathComponent("Torrents", isDirectory: true)
                 .path
-        self.downloadStagingPath = userDefaults.string(forKey: Keys.downloadStagingPath) ?? ""
+        let savedStagingPath = userDefaults.string(forKey: Keys.downloadStagingPath) ?? ""
+        self.downloadStagingPath = savedStagingPath
+        self.usesCustomDownloadStaging = savedStagingPath.isEmpty == false
+            && userDefaults.bool(forKey: Keys.customDownloadStagingEnabled)
         self.torrentWatchFolderPath = userDefaults.string(forKey: Keys.torrentWatchFolderPath)
             ?? defaultDownloadsPath
         self.torrentWatchFolderEnabled = userDefaults.bool(forKey: Keys.torrentWatchFolderEnabled)
@@ -542,13 +551,9 @@ final class AppSettingsStore {
     /// Keeping it on the same volume as the save location makes final placement
     /// a rename instead of a cross-volume copy of every finished file.
     var downloadStagingRootURL: URL {
-        downloadStagingPath.isEmpty
-            ? HarborApplicationSupport.directoryURL()
-            : URL(fileURLWithPath: downloadStagingPath, isDirectory: true)
-    }
-
-    var usesCustomDownloadStaging: Bool {
-        downloadStagingPath.isEmpty == false
+        usesCustomDownloadStaging && downloadStagingPath.isEmpty == false
+            ? URL(fileURLWithPath: downloadStagingPath, isDirectory: true)
+            : HarborApplicationSupport.directoryURL()
     }
 
     var directDownloadRecoveryURL: URL {
@@ -651,11 +656,24 @@ final class AppSettingsStore {
     }
 
     func chooseDownloadStaging() {
-        guard let folder = FolderSelectionService.chooseFolder(startingAt: downloadStagingRootURL) else {
+        let startingURL = downloadStagingPath.isEmpty
+            ? defaultDestinationURL
+            : URL(fileURLWithPath: downloadStagingPath, isDirectory: true)
+        guard let folder = FolderSelectionService.chooseFolder(startingAt: startingURL) else {
             return
         }
 
         downloadStagingPath = folder.path
+        usesCustomDownloadStaging = true
+    }
+
+    func enableCustomDownloadStaging() {
+        if downloadStagingPath.isEmpty {
+            downloadStagingPath = defaultDestinationURL
+                .appendingPathComponent("Harbor Staging", isDirectory: true)
+                .path
+        }
+        usesCustomDownloadStaging = true
     }
 
     func revealDownloadStaging() {
@@ -663,7 +681,7 @@ final class AppSettingsStore {
     }
 
     func useDefaultDownloadStaging() {
-        downloadStagingPath = ""
+        usesCustomDownloadStaging = false
     }
 
     func updateTorrentWatchFolderStatus(_ status: TorrentWatchFolderStatus) {

@@ -569,10 +569,10 @@ private struct DownloadTransferSection: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Text("Transfer")
+                    .font(.subheadline.weight(.medium))
                 Spacer()
                 DownloadProfileMenu(item: item, center: center)
             }
-            .font(.headline)
 
             VStack(spacing: 0) {
                 DownloadedTransferRow(item: item)
@@ -641,9 +641,10 @@ private struct DownloadProfileMenu: View {
             HStack(spacing: 5) {
                 Text(currentMode.title)
                 Image(systemName: "chevron.down")
-                    .font(.caption.weight(.semibold))
+                    .font(.caption.weight(.medium))
             }
-            .font(.headline)
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
         }
         .menuStyle(.button)
         .buttonStyle(.plain)
@@ -936,7 +937,7 @@ private struct DownloadActivitySection: View {
     let item: DownloadItem
 
     var body: some View {
-        DownloadDetailSection(title: "Activity") {
+        DownloadDetailSection(title: "Activity", usesMutedTitle: true) {
             VStack(alignment: .leading, spacing: 0) {
                 let activityEntries = entries
 
@@ -1248,12 +1249,13 @@ private extension DownloadActivityKind {
 
 struct DownloadDetailSection<Content: View>: View {
     let title: LocalizedStringResource
+    var usesMutedTitle = false
     @ViewBuilder let content: () -> Content
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title)
-                .font(.headline)
+                .font(usesMutedTitle ? .subheadline.weight(.medium) : .headline)
 
             content()
         }
