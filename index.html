@@ -216,9 +216,12 @@
       background: var(--ember);
     }
 
-    .screenshot-wrap {
+    .screenshot-gallery {
       width: min(980px, 100%);
       margin: 42px auto 0;
+    }
+
+    .screenshot-frame {
       border: 1px solid rgb(24 33 35 / 10%);
       border-radius: 18px;
       background: rgb(255 255 255 / 58%);
@@ -226,10 +229,110 @@
       overflow: hidden;
     }
 
-    .screenshot-wrap img {
+    .screenshot-track {
+      position: relative;
+      aspect-ratio: 2274 / 1600;
+      overflow: hidden;
+    }
+
+    .screenshot-slide {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      margin: 0;
+      background: #f2f3f4;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity .2s ease;
+    }
+
+    .screenshot-slide.is-active {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .screenshot-slide.dark {
+      background: #252935;
+    }
+
+    .screenshot-slide img {
       display: block;
       width: 100%;
-      height: auto;
+      height: 100%;
+      object-fit: contain;
+    }
+
+    .gallery-controls {
+      display: grid;
+      grid-template-columns: 38px minmax(0, 1fr) 38px;
+      align-items: center;
+      gap: 12px;
+      margin-top: 16px;
+    }
+
+    .gallery-arrow {
+      display: grid;
+      place-items: center;
+      width: 38px;
+      height: 38px;
+      padding: 0;
+      border: 1px solid var(--line);
+      border-radius: 50%;
+      background: white;
+      color: var(--ink);
+      cursor: pointer;
+    }
+
+    .gallery-arrow:disabled {
+      opacity: .4;
+      cursor: default;
+    }
+
+    .gallery-arrow svg {
+      width: 18px;
+      height: 18px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .gallery-caption {
+      margin: 0;
+      color: var(--muted);
+      font-size: 14px;
+      text-align: center;
+    }
+
+    .gallery-dots {
+      display: flex;
+      justify-content: center;
+      gap: 7px;
+      margin-top: 10px;
+    }
+
+    .gallery-dot {
+      width: 8px;
+      height: 8px;
+      padding: 0;
+      border: 0;
+      border-radius: 999px;
+      background: #b6c3c5;
+      cursor: pointer;
+    }
+
+    .gallery-dot[aria-current="true"] {
+      width: 20px;
+      background: var(--harbor);
+    }
+
+    .screenshot-track:focus-visible,
+    .gallery-arrow:focus-visible,
+    .gallery-dot:focus-visible {
+      outline: 3px solid var(--wake);
+      outline-offset: 3px;
     }
 
     .feature-section {
@@ -416,8 +519,11 @@
         width: 100%;
       }
 
-      .screenshot-wrap {
+      .screenshot-gallery {
         margin-top: 34px;
+      }
+
+      .screenshot-frame {
         border-radius: 14px;
       }
 
@@ -485,9 +591,43 @@
           <span>Intel and Apple silicon</span>
         </div>
 
-        <div class="screenshot-wrap" aria-label="Harbor app screenshot">
-          <img src="assets/harbor-screenshot.webp" alt="Harbor showing the downloads sidebar and download detail view" width="1400" height="788">
-        </div>
+        <section class="screenshot-gallery" aria-label="Harbor screenshots" aria-roledescription="carousel">
+          <div class="screenshot-frame">
+            <div class="screenshot-track" id="screenshot-track" tabindex="0" aria-label="Swipe or use the arrow keys to browse screenshots">
+              <figure class="screenshot-slide" aria-label="1 of 7" data-caption="All downloads · Light appearance">
+                <img src="assets/screenshots/harbor-light-downloads-sidebar.jpeg" alt="Harbor download list with sidebar, tags, and active transfers in light appearance" width="2274" height="1600" fetchpriority="high">
+              </figure>
+              <figure class="screenshot-slide" aria-label="2 of 7" data-caption="Torrent details · Light appearance">
+                <img src="assets/screenshots/harbor-light-torrent-inspector.jpeg" alt="Harbor torrent inspector showing seeding progress, transfer metrics, tags, and activity" width="2274" height="1600" loading="lazy">
+              </figure>
+              <figure class="screenshot-slide" aria-label="3 of 7" data-caption="Add a download">
+                <img src="assets/screenshots/harbor-light-add-download.jpeg" alt="Add Download sheet with URL and magnet tab, destination, tags, and advanced settings" width="2274" height="1600" loading="lazy">
+              </figure>
+              <figure class="screenshot-slide" aria-label="4 of 7" data-caption="Download table · Light appearance">
+                <img src="assets/screenshots/harbor-light-downloads-table.jpeg" alt="Harbor download table with status, transfer progress, speed, source, and date columns" width="2274" height="1600" loading="lazy">
+              </figure>
+              <figure class="screenshot-slide dark" aria-label="5 of 7" data-caption="All downloads · Dark appearance">
+                <img src="assets/screenshots/harbor-dark-downloads-sidebar.jpeg" alt="Harbor download list and sidebar in dark appearance" width="2274" height="1600" loading="lazy">
+              </figure>
+              <figure class="screenshot-slide dark" aria-label="6 of 7" data-caption="Torrent details · Dark appearance">
+                <img src="assets/screenshots/harbor-dark-torrent-inspector.jpeg" alt="Harbor torrent inspector and download list in dark appearance" width="2274" height="1600" loading="lazy">
+              </figure>
+              <figure class="screenshot-slide dark" aria-label="7 of 7" data-caption="Download table · Dark appearance">
+                <img src="assets/screenshots/harbor-dark-downloads-table.jpeg" alt="Harbor download table in dark appearance" width="2274" height="1600" loading="lazy">
+              </figure>
+            </div>
+          </div>
+          <div class="gallery-controls">
+            <button class="gallery-arrow" id="gallery-prev" type="button" aria-label="Previous screenshot" aria-controls="screenshot-track" disabled>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 5-7 7 7 7"/></svg>
+            </button>
+            <p class="gallery-caption" id="gallery-caption" aria-live="polite">All downloads · Light appearance</p>
+            <button class="gallery-arrow" id="gallery-next" type="button" aria-label="Next screenshot" aria-controls="screenshot-track">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg>
+            </button>
+          </div>
+          <div class="gallery-dots" id="gallery-dots" aria-label="Choose screenshot"></div>
+        </section>
 
         <section class="feature-section" aria-labelledby="features-title">
           <h2 class="section-heading" id="features-title">Built for everyday downloads</h2>
@@ -708,5 +848,64 @@
       </div>
     </section>
   </main>
+  <script>
+    const track = document.getElementById('screenshot-track');
+    const slides = Array.from(track.children);
+    const dotsContainer = document.getElementById('gallery-dots');
+    const caption = document.getElementById('gallery-caption');
+    const previous = document.getElementById('gallery-prev');
+    const next = document.getElementById('gallery-next');
+    let currentIndex = 0;
+    let touchStartX = 0;
+
+    const dots = slides.map((slide, index) => {
+      const dot = document.createElement('button');
+      dot.type = 'button';
+      dot.className = 'gallery-dot';
+      dot.setAttribute('aria-label', `Show screenshot ${index + 1}: ${slide.dataset.caption}`);
+      dot.addEventListener('click', () => showSlide(index));
+      dotsContainer.append(dot);
+      return dot;
+    });
+
+    function updateControls(index) {
+      currentIndex = Math.max(0, Math.min(index, slides.length - 1));
+      caption.textContent = slides[currentIndex].dataset.caption;
+      previous.disabled = currentIndex === 0;
+      next.disabled = currentIndex === slides.length - 1;
+      slides.forEach((slide, slideIndex) => {
+        slide.classList.toggle('is-active', slideIndex === currentIndex);
+        slide.setAttribute('aria-hidden', slideIndex !== currentIndex);
+      });
+      dots.forEach((dot, dotIndex) => {
+        if (dotIndex === currentIndex) {
+          dot.setAttribute('aria-current', 'true');
+        } else {
+          dot.removeAttribute('aria-current');
+        }
+      });
+    }
+
+    function showSlide(index) {
+      updateControls(index);
+    }
+
+    previous.addEventListener('click', () => showSlide(currentIndex - 1));
+    next.addEventListener('click', () => showSlide(currentIndex + 1));
+    track.addEventListener('keydown', (event) => {
+      if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+        event.preventDefault();
+        showSlide(currentIndex + (event.key === 'ArrowRight' ? 1 : -1));
+      }
+    });
+    track.addEventListener('touchstart', (event) => {
+      touchStartX = event.changedTouches[0].screenX;
+    }, { passive: true });
+    track.addEventListener('touchend', (event) => {
+      const distance = touchStartX - event.changedTouches[0].screenX;
+      if (Math.abs(distance) > 50) showSlide(currentIndex + (distance > 0 ? 1 : -1));
+    }, { passive: true });
+    updateControls(0);
+  </script>
 </body>
 </html>
