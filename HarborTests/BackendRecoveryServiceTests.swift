@@ -1,9 +1,299 @@
 import Darwin
+import CryptoKit
 import Foundation
 import XCTest
 @testable import Harbor
 
 extension HarborModelAndSafetyTests {
+    func testIdleDiscoveryStaysOffForEmptyAndPausedRecoverySessions() async throws {
+        try await withPeerDiscoveryFixture { service, root in
+            let emptyGIDs = try await service.allKnownGIDs()
+            XCTAssertTrue(emptyGIDs.isEmpty)
+            _ = try await service.setPeerBlocklist(["192.0.2.1"])
+            try await Task.sleep(for: .milliseconds(1_200))
+            try await assertPeerDiscovery(false, service: service)
+
+            let gid = try await service.addDownload(
+                sourceKind: .magnetLink,
+                sourceURL: URL(string: "magnet:?xt=urn:btih:0123456789abcdef0123456789abcdef01234567")!,
+                destinationFolderPath: root.path,
+                requestHeaders: []
+            )
+            try await assertPeerDiscovery(true, service: service)
+            try await service.pause(gid: gid)
+            try await assertPeerDiscovery(false, service: service)
+            let paused = try await service.status(for: gid)
+            XCTAssertEqual(paused.status, "paused")
+
+            // A network binding change restarts the engine from its paused
+            // session, including an inherited enable-dht=false option.
+            await service.setNetworkBinding(.unrestricted)
+            let restoredGIDs = try await service.allKnownGIDs()
+            XCTAssertTrue(restoredGIDs.contains(gid))
+            try await assertPeerDiscovery(false, service: service)
+            await service.setNetworkBinding(peerDiscoveryLoopbackBinding)
+            try await service.unpause(gid: gid)
+            try await assertPeerDiscovery(true, service: service)
+            try await service.removeAndConfirmStopped(gid: gid)
+            try await assertPeerDiscovery(false, service: service)
+        }
+    }
+
+    func testDiscoveryRemainsOnForSeederUntilLastTorrentStops() async throws {
+        try await withPeerDiscoveryFixture { service, root in
+            let payload = Data(repeating: 120, count: 16_384)
+            let payloadURL = root.appendingPathComponent("fixture.bin")
+            try payload.write(to: payloadURL)
+            var torrent = Data("d4:infod6:lengthi16384e4:name11:fixture.bin12:piece lengthi16384e6:pieces20:".utf8)
+            torrent.append(contentsOf: Insecure.SHA1.hash(data: payload))
+            torrent.append(Data("ee".utf8))
+            let torrentURL = root.appendingPathComponent("fixture.torrent")
+            try torrent.write(to: torrentURL)
+
+            let seedGID = try await service.addDownload(
+                sourceKind: .torrentFile,
+                sourceURL: torrentURL,
+                destinationFolderPath: root.path,
+                requestHeaders: [],
+                transferOptions: TorrentTransferOptions(
+                    downloadLimitBytesPerSecond: nil,
+                    uploadLimitBytesPerSecond: nil,
+                    shouldSeed: true,
+                    verifyExistingData: true
+                )
+            )
+            var snapshot = try await service.status(for: seedGID)
+            for _ in 0..<50 where snapshot.isSeeder == false {
+                try await Task.sleep(for: .milliseconds(100))
+                snapshot = try await service.status(for: seedGID)
+            }
+            XCTAssertTrue(snapshot.isSeeder)
+
+            let otherGID = try await service.addDownload(
+                sourceKind: .magnetLink,
+                sourceURL: URL(string: "magnet:?xt=urn:btih:0123456789abcdef0123456789abcdef01234567")!,
+                destinationFolderPath: root.path,
+                requestHeaders: []
+            )
+            try await service.pause(gid: otherGID)
+            try await Task.sleep(for: .milliseconds(1_200))
+            try await assertPeerDiscovery(true, service: service)
+            try await service.removeAndConfirmStopped(gid: seedGID)
+            try await assertPeerDiscovery(false, service: service)
+            XCTAssertEqual(try Data(contentsOf: payloadURL), payload)
+            try await service.removeAndConfirmStopped(gid: otherGID)
+
+            let completedGID = try await service.addDownload(
+                sourceKind: .torrentFile,
+                sourceURL: torrentURL,
+                destinationFolderPath: root.path,
+                requestHeaders: [],
+                transferOptions: TorrentTransferOptions(
+                    downloadLimitBytesPerSecond: nil,
+                    uploadLimitBytesPerSecond: nil,
+                    shouldSeed: false,
+                    verifyExistingData: true
+                )
+            )
+            var completed = try await service.status(for: completedGID)
+            for _ in 0..<50 where completed.status != "complete" {
+                try await Task.sleep(for: .milliseconds(100))
+                completed = try await service.status(for: completedGID)
+            }
+            XCTAssertEqual(completed.status, "complete")
+            try await assertPeerDiscovery(false, service: service)
+            try await service.removeAndConfirmStopped(gid: completedGID)
+        }
+    }
+
+    func testCancelledConcurrentMagnetPreviewsReleaseIdleDiscovery() async throws {
+        try await withPeerDiscoveryFixture { service, _ in
+            let first = Task {
+                try await service.previewMagnetContents(
+                    at: URL(string: "magnet:?xt=urn:btih:0123456789abcdef0123456789abcdef01234567")!
+                )
+            }
+            let second = Task {
+                try await service.previewMagnetContents(
+                    at: URL(string: "magnet:?xt=urn:btih:fedcba9876543210fedcba9876543210fedcba98")!
+                )
+            }
+            try await assertPeerDiscovery(true, service: service)
+            var gids = try await service.allKnownGIDs()
+            for _ in 0..<30 where gids.count < 2 {
+                try await Task.sleep(for: .milliseconds(100))
+                gids = try await service.allKnownGIDs()
+            }
+            XCTAssertEqual(gids.count, 2)
+            first.cancel()
+            _ = await first.result
+            try await Task.sleep(for: .milliseconds(1_200))
+            try await assertPeerDiscovery(true, service: service)
+            second.cancel()
+            _ = await second.result
+            try await assertPeerDiscovery(false, service: service)
+            let remainingGIDs = try await service.allKnownGIDs()
+            XCTAssertTrue(remainingGIDs.isEmpty)
+        }
+    }
+
+    func testQueuedTorrentKeepsDiscoveryDuringAutomaticPromotion() async throws {
+        try await withPeerDiscoveryFixture { service, root in
+            await service.updateTransferSettings(
+                DownloadTransferSettings(
+                    maxConcurrentDownloads: 1,
+                    globalSpeedLimitBytesPerSecond: nil,
+                    perDownloadSpeedLimitBytesPerSecond: nil,
+                    globalUploadSpeedLimitBytesPerSecond: nil,
+                    perDownloadUploadSpeedLimitBytesPerSecond: nil,
+                    perDownloadConnectionCount: 4
+                ),
+                activeGIDs: []
+            )
+            let firstGID = try await service.addDownload(
+                sourceKind: .magnetLink,
+                sourceURL: URL(string: "magnet:?xt=urn:btih:0123456789abcdef0123456789abcdef01234567")!,
+                destinationFolderPath: root.path,
+                requestHeaders: []
+            )
+            let secondGID = try await service.addDownload(
+                sourceKind: .magnetLink,
+                sourceURL: URL(string: "magnet:?xt=urn:btih:fedcba9876543210fedcba9876543210fedcba98")!,
+                destinationFolderPath: root.path,
+                requestHeaders: []
+            )
+            let queued = try await service.status(for: secondGID)
+            XCTAssertEqual(queued.status, "waiting")
+            try await service.pause(gid: firstGID)
+            var promoted = try await service.status(for: secondGID)
+            for _ in 0..<40 where promoted.status != "active" {
+                try await Task.sleep(for: .milliseconds(100))
+                promoted = try await service.status(for: secondGID)
+            }
+            XCTAssertEqual(promoted.status, "active")
+            try await Task.sleep(for: .milliseconds(1_200))
+            try await assertPeerDiscovery(true, service: service)
+            try await service.pause(gid: secondGID)
+            try await assertPeerDiscovery(false, service: service)
+            try await service.removeAndConfirmStopped(gid: firstGID)
+            try await service.removeAndConfirmStopped(gid: secondGID)
+        }
+    }
+
+    private var peerDiscoveryLoopbackBinding: NetworkBindingStatus {
+        .bound(
+            displayName: "Loopback",
+            binding: ResolvedNetworkBinding(interfaceName: "lo0", ipv4Address: "127.0.0.1")
+        )
+    }
+
+    private func assertPeerDiscovery(
+        _ enabled: Bool,
+        service: Aria2TorrentService,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) async throws {
+        var actual = await service.isPeerDiscoveryEnabled
+        for _ in 0..<40 where actual != enabled {
+            try await Task.sleep(for: .milliseconds(100))
+            actual = await service.isPeerDiscoveryEnabled
+        }
+        XCTAssertEqual(actual, enabled, file: file, line: line)
+    }
+
+    private func withPeerDiscoveryFixture(
+        _ operation: (Aria2TorrentService, URL) async throws -> Void
+    ) async throws {
+        guard Aria2BinaryResolver.resolveBinaryURL() != nil else {
+            throw XCTSkip("The bundled Aria2 Next runtime is not available in this test build.")
+        }
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("HarborPeerDiscoveryTests-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let key = "HARBOR_APPLICATION_SUPPORT_DIR"
+        let previousValue = getenv(key).map { String(cString: $0) }
+        setenv(key, root.path, 1)
+        defer {
+            if let previousValue { setenv(key, previousValue, 1) } else { unsetenv(key) }
+            try? FileManager.default.removeItem(at: root)
+        }
+        let service = Aria2TorrentService()
+        await service.setNetworkBinding(peerDiscoveryLoopbackBinding)
+        do {
+            try await operation(service, root)
+            try await service.shutdown()
+        } catch {
+            try? await service.shutdown()
+            throw error
+        }
+    }
+
+    func testStoppingSeederRemovesSessionEntryAndPreservesPayload() async throws {
+        guard Aria2BinaryResolver.resolveBinaryURL() != nil else {
+            throw XCTSkip("The bundled Aria2 Next runtime is not available in this test build.")
+        }
+        let fileManager = FileManager.default
+        let root = fileManager.temporaryDirectory
+            .appendingPathComponent("HarborStopSeedingTests-\(UUID().uuidString)", isDirectory: true)
+        try fileManager.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: root) }
+
+        let environmentKey = "HARBOR_APPLICATION_SUPPORT_DIR"
+        let previousValue = getenv(environmentKey).map { String(cString: $0) }
+        setenv(environmentKey, root.path, 1)
+        defer {
+            if let previousValue {
+                setenv(environmentKey, previousValue, 1)
+            } else {
+                unsetenv(environmentKey)
+            }
+        }
+
+        let payload = Data(repeating: 120, count: 16_384)
+        let payloadURL = root.appendingPathComponent("fixture.bin")
+        try payload.write(to: payloadURL)
+        var torrent = Data("d4:infod6:lengthi16384e4:name11:fixture.bin12:piece lengthi16384e6:pieces20:".utf8)
+        torrent.append(contentsOf: Insecure.SHA1.hash(data: payload))
+        torrent.append(Data("ee".utf8))
+        let torrentURL = root.appendingPathComponent("fixture.torrent")
+        try torrent.write(to: torrentURL)
+
+        let service = Aria2TorrentService()
+        do {
+            let gid = try await service.addDownload(
+                sourceKind: .torrentFile,
+                sourceURL: torrentURL,
+                destinationFolderPath: root.path,
+                requestHeaders: [],
+                transferOptions: TorrentTransferOptions(
+                    downloadLimitBytesPerSecond: nil,
+                    uploadLimitBytesPerSecond: nil,
+                    shouldSeed: true,
+                    verifyExistingData: true
+                )
+            )
+            var snapshot = try await service.status(for: gid)
+            for _ in 0..<50 where snapshot.isSeeder == false {
+                try await Task.sleep(for: .milliseconds(100))
+                snapshot = try await service.status(for: gid)
+            }
+            XCTAssertTrue(snapshot.isSeeder)
+
+            try await service.removeAndConfirmStopped(gid: gid)
+            // Concurrent cleanup or a retry must also succeed after removal.
+            try await service.removeAndConfirmStopped(gid: gid)
+            let knownGIDs = try await service.allKnownGIDs()
+            XCTAssertFalse(knownGIDs.contains(gid))
+            let sessionURL = root.appendingPathComponent("Harbor/aria2-next.session")
+            XCTAssertFalse(try String(contentsOf: sessionURL, encoding: .utf8).contains(gid))
+            XCTAssertEqual(try Data(contentsOf: payloadURL), payload)
+            try await service.shutdown()
+        } catch {
+            try? await service.shutdown()
+            throw error
+        }
+    }
+
     func testPeerBlocklistSurvivesTorrentDaemonRestart() async throws {
         guard Aria2BinaryResolver.resolveBinaryURL() != nil else {
             throw XCTSkip("The bundled Aria2 Next runtime is not available in this test build.")

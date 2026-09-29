@@ -187,7 +187,7 @@ final class TorrentEngineLogBuffer: @unchecked Sendable {
 actor Aria2TorrentService {
     typealias DaemonStartupOperation = @Sendable (Aria2TorrentService) async throws -> Void
 
-    private struct DaemonStartupState {
+    private struct EngineOperationState {
         let identifier: UUID
         let task: Task<Void, Error>
     }
@@ -292,7 +292,7 @@ actor Aria2TorrentService {
     private var rpcSecret: String?
     private var stderrPipe: Pipe?
     private var isDaemonReady = false
-    private var daemonStartupState: DaemonStartupState?
+    private var daemonStartupState: EngineOperationState?
     private let daemonStartupOperation: DaemonStartupOperation
     private let startupLogBuffer = TorrentEngineLogBuffer()
     private var transferSettings: DownloadTransferSettings
@@ -300,6 +300,13 @@ actor Aria2TorrentService {
     private var peerBlocklistRules: [String] = []
     private var networkBinding: NetworkBindingStatus = .unrestricted
     private var isRetryingAfterSessionRecovery = false
+    private var peerDiscoveryMonitor: Task<Void, Never>?
+    private var peerDiscoveryUpdate: EngineOperationState?
+    private var pendingNetworkOperations = 0
+    private var networkOperationRevision = 0
+    private var appliedPeerDiscoveryEnabled: Bool? = false
+
+    var isPeerDiscoveryEnabled: Bool { appliedPeerDiscoveryEnabled == true }
 
     init(
         transferSettings: DownloadTransferSettings = .default,
@@ -314,6 +321,8 @@ actor Aria2TorrentService {
     }
 
     deinit {
+        peerDiscoveryMonitor?.cancel()
+        peerDiscoveryUpdate?.task.cancel()
         stderrPipe?.fileHandleForReading.readabilityHandler = nil
         if let process {
             let didStop = process.isRunning
@@ -588,6 +597,10 @@ actor Aria2TorrentService {
         // of silently accepting a stale session file.
         try await saveSession()
 
+        peerDiscoveryMonitor?.cancel()
+        peerDiscoveryMonitor = nil
+        peerDiscoveryUpdate?.task.cancel()
+
         do {
             _ = try await rpcCall(method: "aria2.shutdown", params: [
                 authorizedToken()
@@ -629,7 +642,8 @@ actor Aria2TorrentService {
             throw TorrentEngineError.invalidSource
         }
         let gid = Self.makeSubmissionGID()
-        try await ensureDaemonRunning()
+        try await beginTorrentNetworking()
+        defer { endTorrentNetworking() }
 
         var options = downloadOptions(
             destinationFolderPath: destinationFolderPath,
@@ -708,12 +722,14 @@ actor Aria2TorrentService {
 
         let gid = Self.makeSubmissionGID()
         do {
-            try await ensureDaemonRunning()
+            try await beginTorrentNetworking()
+            defer { endTorrentNetworking() }
             let options: [String: Any] = [
                 "gid": gid,
                 "dir": previewDirectory.path,
                 "pause": "false",
                 "pause-metadata": "true",
+                "enable-dht": "true",
                 "seed-time": "0"
             ]
             let returnedGID = try await submitDownload(
@@ -794,6 +810,8 @@ actor Aria2TorrentService {
     func unpause(gid: String) async throws {
         let lineage = try await followedStatus(for: gid)
         let currentGID = lineage.currentSnapshot.gid
+        try await beginTorrentNetworking()
+        defer { endTorrentNetworking() }
         do {
             _ = try await rpcCall(
                 method: "aria2.unpause",
@@ -943,14 +961,30 @@ actor Aria2TorrentService {
             }
         }
 
-        do {
-            _ = try await rpcCall(method: "aria2.removeDownloadResult", params: [
-                token,
-                gid
-            ], as: String.self)
-        } catch {
-            guard isMissingGIDError(error) else {
-                throw error
+        for attempt in 0..<20 {
+            do {
+                _ = try await rpcCall(method: "aria2.removeDownloadResult", params: [
+                    token,
+                    gid
+                ], as: String.self)
+                return
+            } catch {
+                let removalError = error
+                // forceRemove can return before aria2 publishes the stopped
+                // result. A missing GID also confirms that cleanup is done.
+                do {
+                    _ = try await status(for: gid)
+                } catch {
+                    if isMissingGIDError(error) {
+                        return
+                    }
+                    throw error
+                }
+                guard Self.mutationFailureWasExplicitlyRejected(removalError),
+                      attempt < 19 else {
+                    throw removalError
+                }
+                try await Task.sleep(for: .milliseconds(100))
             }
         }
     }
@@ -1055,7 +1089,7 @@ actor Aria2TorrentService {
             }
             try await daemonStartupOperation(self)
         }
-        let startupState = DaemonStartupState(
+        let startupState = EngineOperationState(
             identifier: UUID(),
             task: startupTask
         )
@@ -1063,7 +1097,127 @@ actor Aria2TorrentService {
         try await awaitDaemonStartup(startupState)
     }
 
-    private func awaitDaemonStartup(_ startupState: DaemonStartupState) async throws {
+    private func beginTorrentNetworking() async throws {
+        try await ensureDaemonRunning()
+        pendingNetworkOperations += 1
+        networkOperationRevision += 1
+        do {
+            try await updatePeerDiscovery()
+        } catch {
+            endTorrentNetworking()
+            throw error
+        }
+    }
+
+    private func endTorrentNetworking() {
+        pendingNetworkOperations -= 1
+        networkOperationRevision += 1
+    }
+
+    private func startPeerDiscoveryMonitor() {
+        peerDiscoveryMonitor = Task { [weak self] in
+            while Task.isCancelled == false {
+                do {
+                    try await Task.sleep(for: .seconds(1))
+                    try await self?.updatePeerDiscovery()
+                } catch {
+                    if Task.isCancelled { return }
+                    self?.logger.debug("Could not update idle torrent discovery: \(error.localizedDescription, privacy: .public)")
+                }
+            }
+        }
+    }
+
+    /// Serialize discovery writes: an idle poll must not disable DHT after a
+    /// concurrent add, resume, or metadata preview has reserved networking.
+    private func updatePeerDiscovery() async throws {
+        while let update = peerDiscoveryUpdate {
+            try await update.task.value
+            if peerDiscoveryUpdate?.identifier == update.identifier {
+                peerDiscoveryUpdate = nil
+            }
+        }
+        try Task.checkCancellation()
+        guard isDaemonReady, process?.isRunning == true else { return }
+
+        let update = EngineOperationState(
+            identifier: UUID(),
+            task: Task { try await self.synchronizePeerDiscovery() }
+        )
+        peerDiscoveryUpdate = update
+        defer {
+            if peerDiscoveryUpdate?.identifier == update.identifier {
+                peerDiscoveryUpdate = nil
+            }
+        }
+        try await update.task.value
+    }
+
+    private func synchronizePeerDiscovery() async throws {
+        let secret = rpcSecret
+        while true {
+            try Task.checkCancellation()
+            let revision = networkOperationRevision
+            var needsNetworking = pendingNetworkOperations > 0
+            if needsNetworking == false {
+                needsNetworking = try await hasRunnableTorrents()
+            }
+            try Task.checkCancellation()
+            guard rpcSecret == secret else { return }
+            if revision != networkOperationRevision { continue }
+
+            if needsNetworking != appliedPeerDiscoveryEnabled {
+                // Local discovery stays off. Port mapping also has idle timers.
+                // TODO: Retain the DHT routing cache across idle transitions
+                // when the runtime exposes a session-state snapshot API.
+                // A lost response can follow a committed option change. Mark
+                // the result unknown so the next poll reapplies the policy.
+                appliedPeerDiscoveryEnabled = nil
+                _ = try await rpcCall(method: "aria2.changeGlobalOption", params: [
+                    authorizedToken(),
+                    [
+                        "enable-dht": needsNetworking ? "true" : "false",
+                        "bt-port-mapping": needsNetworking ? "true" : "false"
+                    ]
+                ], as: String.self)
+                guard rpcSecret == secret else { return }
+                appliedPeerDiscoveryEnabled = needsNetworking
+                logger.info("Torrent peer discovery \(needsNetworking ? "enabled" : "disabled", privacy: .public)")
+            }
+            if revision == networkOperationRevision { return }
+        }
+    }
+
+    private func hasRunnableTorrents() async throws -> Bool {
+        var offset = 0
+        while true {
+            // Read both lists in one engine turn. A queued job that becomes
+            // active between separate RPC calls must not look like idle work.
+            let token = try authorizedToken()
+            let results = try await rpcCall(
+                method: "system.multicall",
+                params: [[
+                    ["methodName": "aria2.tellActive", "params": [token, ["gid", "status"]]],
+                    ["methodName": "aria2.tellWaiting", "params": [token, offset, 1_000, ["gid", "status"]]]
+                ]],
+                as: [[[StatusPayload]]].self
+            )
+            guard results.count == 2,
+                  let active = results[0].first,
+                  let queued = results[1].first else {
+                throw TorrentEngineError.invalidResponse
+            }
+            // tellWaiting includes paused jobs; they need recovery, not DHT.
+            if active.isEmpty == false || queued.contains(where: { $0.status == "waiting" }) {
+                return true
+            }
+            if queued.count < 1_000 { return false }
+            offset += queued.count
+            try Task.checkCancellation()
+        }
+    }
+
+    private func awaitDaemonStartup(_ startupState: EngineOperationState) async throws {
         do {
             try await startupState.task.value
         } catch {
@@ -1184,6 +1338,7 @@ actor Aria2TorrentService {
                 }
                 isRetryingAfterSessionRecovery = false
                 isDaemonReady = true
+                startPeerDiscoveryMonitor()
                 startupLogBuffer.stopCapturing()
                 logger.info("Aria2 Next RPC is ready")
                 return
@@ -1232,6 +1387,9 @@ actor Aria2TorrentService {
             "--seed-ratio=0.0",
             "--follow-torrent=true",
             "--pause=true",
+            "--enable-dht=false",
+            "--bt-enable-lpd=false",
+            "--bt-port-mapping=false",
             "--allow-overwrite=false",
             "--auto-file-renaming=true"
         ]
@@ -1418,7 +1576,8 @@ actor Aria2TorrentService {
     ) -> [String: String] {
         var options = [
             "dir": destinationFolderPath,
-            "pause": "false"
+            "pause": "false",
+            "enable-dht": "true"
         ]
 
         perDownloadOptions(
@@ -1721,6 +1880,11 @@ actor Aria2TorrentService {
     }
 
     private func resetDaemon(terminateIfRunning: Bool) {
+        peerDiscoveryMonitor?.cancel()
+        peerDiscoveryMonitor = nil
+        peerDiscoveryUpdate?.task.cancel()
+        peerDiscoveryUpdate = nil
+        appliedPeerDiscoveryEnabled = false
         isDaemonReady = false
         stderrPipe?.fileHandleForReading.readabilityHandler = nil
 
