@@ -140,6 +140,8 @@ struct TorrentsSettingsTab: View {
         @Bindable var settings = settings
 
         Form {
+            TorrentDefaultAppsSection()
+
             Section("Automation") {
                 Toggle("Watch a folder for torrent files", isOn: $settings.torrentWatchFolderEnabled)
 
