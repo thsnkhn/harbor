@@ -2,13 +2,16 @@ import SwiftUI
 
 struct TorrentContentsSelectionSheet: View {
     let loadPreview: @MainActor () async throws -> TorrentContentsPreview
-    let onAdd: @MainActor (TorrentContentsPreview, TorrentFileSelection?) -> Void
+    var isExistingDownload = false
+    let onAdd: @MainActor (TorrentContentsPreview, TorrentFileSelection?) async throws -> Void
 
     @Environment(\.dismiss) private var dismiss
     @State private var preview: TorrentContentsPreview?
     @State private var selectedIndexes: Set<Int> = []
     @State private var errorMessage: String?
     @State private var loadGeneration = 0
+    @State private var isSaving = false
+    @State private var saveError: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -38,11 +41,15 @@ struct TorrentContentsSelectionSheet: View {
             }
             .frame(minHeight: 320)
 
+            if let saveError {
+                Text(saveError).foregroundStyle(.red)
+            }
             footer
         }
         .padding(20)
         .frame(minWidth: 640, idealWidth: 720, minHeight: 460, idealHeight: 560)
         .accessibilityIdentifier(HarborAccessibility.torrentSheet)
+        .interactiveDismissDisabled(isSaving)
         .task(id: loadGeneration) {
             await load()
         }
@@ -70,14 +77,20 @@ struct TorrentContentsSelectionSheet: View {
             TableColumn("") { file in
                 Toggle("Select \(file.path)", isOn: selectionBinding(for: file.index))
                     .labelsHidden()
+                    .disabled(preview.completedIndexes.contains(file.index) || isSaving)
             }
             .width(28)
 
             TableColumn("File") { file in
-                Text(file.path)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                    .help(file.path)
+                HStack {
+                    Text(file.path)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .help(file.path)
+                    if preview.completedIndexes.contains(file.index) {
+                        Text("Downloaded").foregroundStyle(.secondary)
+                    }
+                }
             }
 
             TableColumn("Size") { file in
@@ -97,13 +110,13 @@ struct TorrentContentsSelectionSheet: View {
                     selectedIndexes = Set(preview.files.map(\.index))
                 }
                 .accessibilityIdentifier(HarborAccessibility.torrentSelectAll)
-                .disabled(selectedIndexes.count == preview.files.count)
+                .disabled(isSaving || selectedIndexes.count == preview.files.count)
 
                 Button("Select None") {
-                    selectedIndexes.removeAll()
+                    selectedIndexes = preview.completedIndexes
                 }
                 .accessibilityIdentifier(HarborAccessibility.torrentSelectNone)
-                .disabled(selectedIndexes.isEmpty)
+                .disabled(isSaving || selectedIndexes == preview.completedIndexes)
 
                 Text(selectionSummary(in: preview))
                     .font(.caption)
@@ -118,23 +131,30 @@ struct TorrentContentsSelectionSheet: View {
             }
             .accessibilityIdentifier(HarborAccessibility.torrentCancel)
             .keyboardShortcut(.cancelAction)
+            .disabled(isSaving)
 
-            Button("Add Download") {
-                guard let preview else {
-                    return
+            Button(isExistingDownload ? "Save Selection" : "Add Download") {
+                guard let preview else { return }
+                isSaving = true
+                saveError = nil
+                Task { @MainActor in
+                    defer { isSaving = false }
+                    do {
+                        try await onAdd(
+                            preview,
+                            TorrentFileSelection.partial(selectedIndexes: selectedIndexes, in: preview)
+                        )
+                        dismiss()
+                    } catch {
+                        saveError = error.localizedDescription
+                    }
                 }
-                onAdd(
-                    preview,
-                    TorrentFileSelection.partial(
-                        selectedIndexes: selectedIndexes,
-                        in: preview
-                    )
-                )
-                dismiss()
             }
             .accessibilityIdentifier(HarborAccessibility.torrentAdd)
             .keyboardShortcut(.defaultAction)
-            .disabled(preview == nil || selectedIndexes.isEmpty)
+            .disabled(preview == nil || selectedIndexes.isEmpty || isSaving
+                      || (isExistingDownload && selectedIndexes == preview?.selectedIndexes))
+
         }
     }
 
@@ -166,7 +186,8 @@ struct TorrentContentsSelectionSheet: View {
             let loadedPreview = try await loadPreview()
             try Task.checkCancellation()
             preview = loadedPreview
-            selectedIndexes = Set(loadedPreview.files.map(\.index))
+            selectedIndexes = (loadedPreview.selectedIndexes ?? Set(loadedPreview.files.map(\.index)))
+                .union(loadedPreview.completedIndexes)
         } catch is CancellationError {
             return
         } catch {

@@ -4,6 +4,35 @@ import XCTest
 @testable import Harbor
 
 extension HarborModelAndSafetyTests {
+    func testBrowserDownloadHandoffIgnoresWebKitPolicyInterruption() throws {
+        var failedIDs: [UUID] = []
+        let coordinator = BrowserDownloadCoordinator(
+            resumeDownload: { _, _, _ in },
+            onEvent: { event in
+                if case let .failed(id, _, _) = event { failedIDs.append(id) }
+            }
+        )
+        let id = UUID()
+        let session = coordinator.startSession(
+            downloadID: id,
+            sourceURL: try XCTUnwrap(URL(string: "https://example.test/download")),
+            displayName: "Download",
+            resumeData: Data("resume".utf8)
+        )
+
+        coordinator.webView(
+            session.webView, didFailProvisionalNavigation: nil,
+            withError: NSError(domain: "WebKitErrorDomain", code: 102)
+        )
+        XCTAssertTrue(failedIDs.isEmpty, "A policy handoff must keep the browser download alive.")
+
+        coordinator.webView(
+            session.webView, didFailProvisionalNavigation: nil,
+            withError: URLError(.cannotConnectToHost)
+        )
+        XCTAssertEqual(failedIDs, [id], "Real navigation failures must still reach the download.")
+    }
+
     func testStaleBrowserResumeCallbackCannotAttachToReplacementSession() throws {
         let coordinator = BrowserDownloadCoordinator(
             resumeDownload: { _, _, _ in },

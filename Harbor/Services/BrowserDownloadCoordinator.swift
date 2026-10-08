@@ -1077,7 +1077,8 @@ final class BrowserDownloadCoordinator: NSObject {
         let nsError = error as NSError
         let frameLoadInterruptedByPolicyChange = 102
 
-        if nsError.domain == WKErrorDomain,
+        // Navigation policy interruptions use the legacy WebKit domain, even in WKWebView.
+        if nsError.domain == "WebKitErrorDomain",
            nsError.code == frameLoadInterruptedByPolicyChange {
             return true
         }
@@ -1562,7 +1563,10 @@ extension BrowserDownloadCoordinator: WKUIDelegate {
         for navigationAction: WKNavigationAction,
         windowFeatures: WKWindowFeatures
     ) -> WKWebView? {
-        if navigationAction.targetFrame == nil {
+        // A script-created advertising popup must not replace the download page.
+        // Explicit links that open a new tab still work in this single-page browser.
+        if navigationAction.targetFrame == nil,
+           navigationAction.navigationType == .linkActivated {
             webView.load(navigationAction.request)
         }
 

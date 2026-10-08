@@ -420,6 +420,34 @@ actor Aria2TorrentService {
         }
     }
 
+    func contents(gid: String, directoryURL: URL) async throws -> TorrentContentsPreview {
+        let lineage = try await followedStatus(for: gid)
+        guard !lineage.isMetadataOnly else { throw TorrentSelectionError.metadataPending }
+        let payload = try await rpcCallWithDaemonRestart(
+            method: "aria2.tellStatus",
+            params: { [try authorizedToken(), lineage.currentSnapshot.gid,
+                       ["status", "errorMessage", "infoHash", "files", "bittorrent"]] },
+            as: Aria2NextMagnetStatus.self
+        )
+        guard let preview = try payload.preview(relativeTo: directoryURL) else {
+            throw TorrentSelectionError.metadataPending
+        }
+        return preview
+    }
+
+    func selectFiles(_ indexes: Set<Int>, gid: String) async throws {
+        guard let selection = Self.selectFileOption(from: Array(indexes)) else {
+            throw TorrentSelectionError.emptySelection
+        }
+        let currentGID = try await followedStatus(for: gid).currentSnapshot.gid
+        _ = try await rpcCallWithDaemonRestart(
+            method: "aria2.changeOption",
+            params: { [try authorizedToken(), currentGID, ["select-file": selection]] },
+            as: String.self
+        )
+        await persistSessionAfterMutation("file selection")
+    }
+
     func trackers(gid: String) async throws -> [TorrentTracker] {
         let currentGID = try await followedStatus(for: gid).currentSnapshot.gid
         var trackers = try await rpcCallWithDaemonRestart(

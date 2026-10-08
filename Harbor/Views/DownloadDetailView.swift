@@ -17,6 +17,7 @@ struct DownloadDetailView: View {
 private struct DownloadInspectorContent: View {
     let item: DownloadItem
     let center: DownloadCenter
+    @State private var showsTorrentPreview = false
 
     var body: some View {
         ScrollView {
@@ -31,8 +32,7 @@ private struct DownloadInspectorContent: View {
                     startSeeding: startSeeding,
                     stopSeeding: stopSeeding,
                     openFile: openFile,
-                    quickLook: quickLook,
-                    canQuickLook: center.canQuickLookDownloads(ids: [item.id]),
+                    previewTorrent: { showsTorrentPreview = true },
                     revealInFinder: revealInFinder,
                     copySourceURL: copySourceURL
                 )
@@ -76,6 +76,15 @@ private struct DownloadInspectorContent: View {
             .padding(24)
         }
         .navigationTitle(item.displayName)
+        .sheet(isPresented: $showsTorrentPreview) {
+            TorrentContentsSelectionSheet(
+                loadPreview: { try await center.previewTorrentContents(id: item.id) },
+                isExistingDownload: true,
+                onAdd: { preview, selection in
+                    try await center.updateTorrentSelection(id: item.id, preview: preview, selection: selection)
+                }
+            )
+        }
     }
 
     private var shouldShowMediaFormatRecovery: Bool {
@@ -119,10 +128,6 @@ private struct DownloadInspectorContent: View {
 
     private func openFile() {
         center.openDownload(id: item.id)
-    }
-
-    private func quickLook() {
-        center.quickLookDownload(id: item.id)
     }
 
     private func revealInFinder() {
@@ -438,8 +443,7 @@ private struct DownloadActionRow: View {
     let startSeeding: () -> Void
     let stopSeeding: () -> Void
     let openFile: () -> Void
-    let quickLook: () -> Void
-    let canQuickLook: Bool
+    let previewTorrent: () -> Void
     let revealInFinder: () -> Void
     let copySourceURL: () -> Void
 
@@ -515,13 +519,12 @@ private struct DownloadActionRow: View {
 
     @ViewBuilder
     private var secondaryAction: some View {
-        if item.status == .completed {
-            Button(action: quickLook) {
-                Label("Quick Look", systemImage: "eye")
+        if item.backend == .aria2 {
+            Button(action: previewTorrent) {
+                Label("Preview", systemImage: "list.bullet")
             }
             .buttonStyle(LiquidPillButtonStyle(prominent: false))
             .accessibilityIdentifier(HarborAccessibility.inspectorSecondaryAction)
-            .disabled(canQuickLook == false)
         } else if item.fileLocationURL != nil,
            item.status != .completed {
             Button(action: openFile) {

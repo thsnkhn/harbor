@@ -115,7 +115,7 @@ final class TorrentContentsPreviewTests: XCTestCase {
         let payload = try JSONDecoder().decode(
             Aria2NextMagnetStatus.self,
             from: Data(
-                #"{"status":"paused","infoHash":"0123456789abcdef0123456789abcdef01234567","errorMessage":null,"files":[{"index":"1","path":"/tmp/preview/Release/Docs/readme.txt","length":"7"},{"index":"2","path":"/tmp/preview/Release/video.mp4","length":"15"}],"bittorrent":{"info":{"name":"Release"},"infoHashV1":"0123456789abcdef0123456789abcdef01234567","infoHashV2":null}}"#.utf8
+                #"{"status":"paused","infoHash":"0123456789abcdef0123456789abcdef01234567","errorMessage":null,"files":[{"index":"1","path":"/tmp/preview/Release/Docs/readme.txt","length":"7","completedLength":"7","selected":"true"},{"index":"2","path":"/tmp/preview/Release/video.mp4","length":"15","completedLength":"3","selected":"false"}],"bittorrent":{"info":{"name":"Release"},"infoHashV1":"0123456789abcdef0123456789abcdef01234567","infoHashV2":null}}"#.utf8
             )
         )
 
@@ -133,6 +133,8 @@ final class TorrentContentsPreviewTests: XCTestCase {
             ]
         )
         XCTAssertNil(preview.metainfoData)
+        XCTAssertEqual(preview.selectedIndexes, [1])
+        XCTAssertEqual(preview.completedIndexes, [1])
     }
 
     @MainActor
@@ -165,6 +167,41 @@ final class TorrentContentsPreviewTests: XCTestCase {
         let legacyData = try JSONSerialization.data(withJSONObject: legacyJSON)
         let legacyRecord = try JSONDecoder().decode(DownloadRecord.self, from: legacyData)
         XCTAssertNil(legacyRecord.torrentFileSelection)
+    }
+
+    @MainActor
+    func testEditingPausedTorrentSelectionPersistsWithoutStartingDownload() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let source = root.appendingPathComponent("selection.torrent")
+        try makeMultiFileTorrent().write(to: source)
+        let suite = "HarborTests.Selection.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let persistence = DownloadPersistence(directoryURL: root)
+        let center = DownloadCenter(settings: AppSettingsStore(userDefaults: defaults), persistence: persistence)
+        let item = DownloadItem(
+            sourceURL: source, sourceKind: .torrentFile, backend: .aria2,
+            preferredFilename: nil, destinationFolderPath: root.path, status: .paused
+        )
+        center.downloads = [item]
+        let preview = try await center.previewTorrentContents(id: item.id)
+        try await center.updateTorrentSelection(
+            id: item.id, preview: preview,
+            selection: TorrentFileSelection.partial(selectedIndexes: [2], in: preview)
+        )
+        let records = try await persistence.load()
+        XCTAssertEqual(records.first?.torrentFileSelection?.selectedIndexes, [2])
+        XCTAssertEqual(item.status, .paused)
+        XCTAssertNil(item.backendIdentifier)
+        let reloaded = try await center.previewTorrentContents(id: item.id)
+        XCTAssertEqual(reloaded.selectedIndexes, [2])
+        XCTAssertTrue(reloaded.completedIndexes.isEmpty)
+        item.finishedAt = .now
+        let completed = try await center.previewTorrentContents(id: item.id)
+        XCTAssertEqual(completed.completedIndexes, [2])
+        await center.shutdownForTermination()
     }
 
     private func makeSingleFileTorrent(name: String, length: Int64) -> Data {

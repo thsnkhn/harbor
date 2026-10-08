@@ -45,6 +45,8 @@ struct AddDownloadSheet: View {
     @State private var validationMessage: String?
     @State private var mediaPreview: MediaDownloadMetadata?
     @State private var mediaPreviewError: String?
+    @State private var batchMedia: [URL: MediaDownloadMetadata] = [:]
+    @State private var batchErrors: [URL: String] = [:]
     @State private var mediaFormatPreference: MediaDownloadFormatPreference = .bestAvailable
     @State private var hasMediaSavePermission = true
     @State private var isResolvingMedia = false
@@ -654,7 +656,8 @@ struct AddDownloadSheet: View {
         switch entryMode {
         case .linkOrMagnet:
             if isBatchEntry {
-                return parsedBatchURLs.isEmpty == false
+                return readyBatchURLs.isEmpty == false && isResolvingMedia == false
+                    && (batchMedia.isEmpty || hasMediaSavePermission)
             }
 
             let trimmedURL = sourceURLText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -703,6 +706,25 @@ struct AddDownloadSheet: View {
         batchEntries.compactMap(\.url)
     }
 
+    private var readyBatchURLs: [URL] {
+        parsedBatchURLs.filter { url in
+            batchErrors[url] == nil && (!isKnownMediaHost(url) || batchMedia[url] != nil)
+                && (batchMedia[url] == nil || requestHeaders.isEmpty)
+        }
+    }
+
+    private func batchStatus(for entry: DownloadSourceImportService.TextEntry) -> String {
+        guard let url = entry.url else {
+            return entry.status == .duplicate ? String(localized: "Duplicate") : String(localized: "Skipped")
+        }
+        if let error = batchErrors[url] { return error }
+        if isKnownMediaHost(url), batchMedia[url] == nil { return String(localized: "Checking…") }
+        if batchMedia[url] != nil, !requestHeaders.isEmpty {
+            return String(localized: "Remove request headers to add media downloads.")
+        }
+        return String(localized: "Ready")
+    }
+
     private var isBatchEntry: Bool {
         entryMode == .linkOrMagnet && batchEntries.count > 1
     }
@@ -731,13 +753,20 @@ struct AddDownloadSheet: View {
                 LazyVStack(spacing: 6) {
                     ForEach(batchEntries) { entry in
                         HStack(spacing: 8) {
-                            Image(systemName: batchEntrySystemImage(for: entry.status))
-                                .foregroundStyle(batchEntryColor(for: entry.status))
+                            if let url = entry.url, isKnownMediaHost(url),
+                               batchMedia[url] == nil, batchErrors[url] == nil {
+                                ProgressView().controlSize(.small)
+                            } else {
+                                Image(systemName: entry.url.flatMap { batchErrors[$0] } == nil
+                                      ? batchEntrySystemImage(for: entry.status) : "exclamationmark.triangle.fill")
+                                    .foregroundStyle(entry.url.flatMap { batchErrors[$0] } == nil
+                                                     ? batchEntryColor(for: entry.status) : .orange)
+                            }
                             Text(entry.text)
                                 .lineLimit(1)
                                 .truncationMode(.middle)
                             Spacer(minLength: 8)
-                            Text(batchEntryStatusTitle(for: entry.status))
+                            Text(batchStatus(for: entry))
                                 .foregroundStyle(.secondary)
                         }
                         .font(.caption)
@@ -745,6 +774,15 @@ struct AddDownloadSheet: View {
                 }
             }
             .frame(maxHeight: 140)
+            if !batchMedia.isEmpty {
+                Toggle("I own this content or have permission to save it", isOn: $hasMediaSavePermission)
+            }
+            if !batchErrors.isEmpty {
+                Button("Retry Failed Links") {
+                    batchErrors = [:]
+                    scheduleMediaPreviewRefresh()
+                }
+            }
         }
     }
 
@@ -768,24 +806,13 @@ struct AddDownloadSheet: View {
         }
     }
 
-    private func batchEntryStatusTitle(for status: DownloadSourceImportService.TextEntry.Status) -> LocalizedStringKey {
-        switch status {
-        case .ready:
-            "Ready"
-        case .duplicate:
-            "Duplicate"
-        case .unsupported:
-            "Skipped"
-        }
-    }
-
     private var batchReadyDescription: String {
         let template = String(
             localized: "add.batch.ready",
             defaultValue: "%d links ready to add",
             comment: "Add Download summary showing how many valid links were detected when adding several at once. Parameter is the count."
         )
-        return String(format: template, parsedBatchURLs.count)
+        return String(format: template, readyBatchURLs.count)
     }
 
     private var batchSkippedDescription: String {
@@ -812,7 +839,7 @@ struct AddDownloadSheet: View {
                 defaultValue: "Add %d Downloads",
                 comment: "Add Download button title when adding several links at once. Parameter is the count."
             )
-            return String(format: template, parsedBatchURLs.count)
+            return String(format: template, readyBatchURLs.count)
         }
 
         return String(
@@ -853,10 +880,11 @@ struct AddDownloadSheet: View {
         if entryMode == .linkOrMagnet, isBatchEntry {
             let folderURL = URL(fileURLWithPath: destinationPath, isDirectory: true)
             let requests = AddDownloadRequest.batch(
-                from: parsedBatchURLs,
+                from: readyBatchURLs,
                 destinationFolder: folderURL,
                 shouldStartImmediately: shouldStartImmediately,
-                requestHeaders: requestHeaders
+                requestHeaders: requestHeaders,
+                mediaMetadata: batchMedia
             )
 
             guard requests.isEmpty == false else {
@@ -999,6 +1027,15 @@ struct AddDownloadSheet: View {
     @MainActor
     private func performSubmission(_ requests: [AddDownloadRequest]) {
         onSubmit(requests)
+        if isBatchEntry {
+            let submitted = Set(requests.map(\.sourceURL))
+            let remaining = parsedBatchURLs.filter { !submitted.contains($0) }
+            if !remaining.isEmpty {
+                sourceURLText = remaining.map(\.absoluteString).joined(separator: "\n")
+                validationMessage = String(localized: "Ready links were added. Check the remaining links.")
+                return
+            }
+        }
         dismiss()
     }
 
@@ -1137,6 +1174,30 @@ struct AddDownloadSheet: View {
         mediaPreviewGeneration += 1
         let generation = mediaPreviewGeneration
         resetMediaPreview()
+        let currentURLs = Set(parsedBatchURLs)
+        batchMedia = batchMedia.filter { currentURLs.contains($0.key) }
+        batchErrors = batchErrors.filter { currentURLs.contains($0.key) }
+
+        if isBatchEntry {
+            let urls = parsedBatchURLs.filter {
+                isKnownMediaHost($0) && batchMedia[$0] == nil && batchErrors[$0] == nil
+            }
+            isResolvingMedia = !urls.isEmpty
+            mediaPreviewTask = Task { @MainActor in
+                for url in urls {
+                    do {
+                        let metadata = try await AddDownloadMediaResolver.resolve(url, using: mediaPreviewProvider)
+                        guard mediaPreviewGeneration == generation else { return }
+                        batchMedia[url] = metadata
+                    } catch {
+                        guard !Task.isCancelled, mediaPreviewGeneration == generation else { return }
+                        batchErrors[url] = DownloadItem.displayErrorMessage(from: error.localizedDescription)
+                    }
+                }
+                if mediaPreviewGeneration == generation { isResolvingMedia = false }
+            }
+            return
+        }
 
         guard entryMode == .linkOrMagnet,
               isBatchEntry == false,
@@ -1200,20 +1261,7 @@ struct AddDownloadSheet: View {
         }
 
         do {
-            guard let metadata = try await mediaPreviewProvider(url) else {
-                return nil
-            }
-
-            guard isUsableMediaMetadata(metadata) else {
-                if showErrors, mediaPreviewGeneration == generation {
-                    mediaPreviewError = String(
-                        localized: "add.validation.mediaUnavailable",
-                        defaultValue: "yt-dlp couldn’t verify downloadable media for this link.",
-                        comment: "Validation message shown when a known media site does not provide verified downloadable media."
-                    )
-                }
-                return nil
-            }
+            let metadata = try await AddDownloadMediaResolver.resolve(url, using: mediaPreviewProvider)
 
             guard mediaPreviewGeneration == generation,
                   parsedLinkURL == url else {
@@ -1239,44 +1287,10 @@ struct AddDownloadSheet: View {
         mediaFormatPreference = .bestAvailable
     }
 
-    private func isUsableMediaMetadata(_ metadata: MediaDownloadMetadata) -> Bool {
-        metadata.supportsMediaDownload
-    }
-
     private func isKnownMediaHost(_ url: URL) -> Bool {
-        guard let host = url.host?.lowercased() else {
-            return false
-        }
-
-        let exactHosts: Set<String> = [
-            "fb.watch",
-            "pin.it",
-            "youtu.be"
-        ]
-
-        if exactHosts.contains(host) {
-            return true
-        }
-
-        let suffixes = [
-            "youtube.com",
-            "instagram.com",
-            "tiktok.com",
-            "twitter.com",
-            "x.com",
-            "facebook.com",
-            "pinterest.com",
-            "vimeo.com",
-            "dailymotion.com",
-            "reddit.com",
-            "threads.net",
-            "soundcloud.com",
-            "twitch.tv"
-        ]
-
-        return suffixes.contains { host == $0 || host.hasSuffix(".\($0)") }
-            || host.contains("pinterest.")
+        AddDownloadMediaResolver.isKnownMediaHost(url)
     }
+
 }
 
 private struct AddDownloadSheetTitleHider: NSViewRepresentable {

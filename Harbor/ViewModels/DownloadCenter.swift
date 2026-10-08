@@ -122,6 +122,7 @@ final class DownloadCenter {
     private var initializationState: InitializationState = .notLoaded
     @ObservationIgnored private var initializationTask: Task<Void, Never>?
     @ObservationIgnored private var hasInstalledExternalOpenHandler = false
+    @ObservationIgnored private var torrentSelectionUpdates: Set<UUID> = []
     @ObservationIgnored private var persistTask: Task<Void, Never>?
     @ObservationIgnored private var torrentRefreshTask: Task<Void, Never>?
     @ObservationIgnored private var hasShownTorrentBinaryAlert = false
@@ -2633,6 +2634,88 @@ final class DownloadCenter {
             proxySettings: settings.proxySettings,
             torrentService: torrentService
         )
+    }
+
+    func previewTorrentContents(id: UUID) async throws -> TorrentContentsPreview {
+        guard let item = item(for: id), item.backend == .aria2 else {
+            throw TorrentEngineError.invalidSource
+        }
+        if let gid = item.backendIdentifier {
+            do {
+                return try await torrentService.contents(
+                    gid: gid,
+                    directoryURL: URL(fileURLWithPath: item.destinationFolderPath, isDirectory: true)
+                )
+            } catch {
+                guard isStaleTorrentIdentifierError(error) else { throw error }
+            }
+        }
+        var preview = try await previewTorrentContents(
+            sourceKind: torrentEngineSourceKind(for: item),
+            sourceURL: torrentEngineSourceURL(for: item),
+            requestHeaders: item.requestHeaders
+        )
+        preview.selectedIndexes = item.torrentFileSelection.map { Set($0.selectedIndexes) }
+            ?? Set(preview.files.map(\.index))
+        if item.finishedAt != nil {
+            preview.completedIndexes = preview.selectedIndexes ?? []
+        }
+        return preview
+    }
+
+    func updateTorrentSelection(
+        id: UUID,
+        preview: TorrentContentsPreview,
+        selection: TorrentFileSelection?
+    ) async throws {
+        guard !isShuttingDown, !torrentSelectionUpdates.contains(id),
+              let item = item(for: id), item.backend == .aria2,
+              torrentStartTasks[id] == nil, torrentPauseTasks[id] == nil,
+              torrentStopSeedingTasks[id] == nil,
+              cancellationTasks[id] == nil, removalTasks[id] == nil else {
+            throw TorrentSelectionError.busy
+        }
+        torrentSelectionUpdates.insert(id)
+        defer { torrentSelectionUpdates.remove(id) }
+        let originalGID = item.backendIdentifier
+        let originalStatus = item.status
+        let latest = try await previewTorrentContents(id: id)
+        guard latest.infoHash == preview.infoHash else { throw TorrentEngineError.invalidSource }
+        let indexes = (selection.map { Set($0.selectedIndexes) } ?? Set(latest.files.map(\.index)))
+            .union(latest.completedIndexes)
+        guard !indexes.isEmpty else { throw TorrentSelectionError.emptySelection }
+        guard self.item(for: id) === item, item.backendIdentifier == originalGID,
+              item.status == originalStatus, !isShuttingDown,
+              torrentPauseTasks[id] == nil, cancellationTasks[id] == nil,
+              removalTasks[id] == nil else { throw TorrentSelectionError.busy }
+
+        let restartsCompletedDownload = item.finishedAt != nil
+            && !indexes.subtracting(latest.completedIndexes).isEmpty
+        if let gid = originalGID, indexes != latest.selectedIndexes {
+            if restartsCompletedDownload {
+                try await torrentRemoveOperation(torrentService, gid)
+            } else {
+                try await torrentService.selectFiles(indexes, gid: gid)
+            }
+        }
+        guard self.item(for: id) === item, item.backendIdentifier == originalGID,
+              item.status == originalStatus, !isShuttingDown,
+              cancellationTasks[id] == nil, removalTasks[id] == nil else {
+            throw TorrentSelectionError.busy
+        }
+        item.torrentFileSelection = TorrentFileSelection.partial(selectedIndexes: indexes, in: latest)
+        item.expectedBytes = item.torrentFileSelection?.selectedBytes ?? latest.totalBytes
+        item.updatedAt = .now
+        if restartsCompletedDownload {
+            item.backendIdentifier = nil
+            item.finishedAt = nil
+            item.completionNotificationDelivered = false
+            item.progress = 0
+            setStatus(for: item, to: .paused)
+        }
+        try await saveRecordsNow()
+        if restartsCompletedDownload { startOrQueueDownload(id: id) }
+        // TODO: Add file priority controls only when the torrent engine supports the requested behavior.
     }
 
     func torrentTrackers(for id: UUID) async throws -> [TorrentTracker] {
@@ -6321,6 +6404,7 @@ final class DownloadCenter {
 
         for item in torrentItems {
             guard let backendIdentifier = item.backendIdentifier,
+                  torrentSelectionUpdates.contains(item.id) == false,
                   torrentStartTasks[item.id] == nil,
                   torrentPauseTasks[item.id] == nil,
                   torrentStopSeedingTasks[item.id] == nil,
@@ -6338,6 +6422,7 @@ final class DownloadCenter {
                       refreshedItem.backendIdentifier == backendIdentifier,
                       refreshedItem.status == expectedStatus,
                       refreshedItem.updatedAt == lifecycleVersion,
+                      torrentSelectionUpdates.contains(item.id) == false,
                       torrentStartTasks[item.id] == nil,
                       torrentPauseTasks[item.id] == nil,
                       torrentStopSeedingTasks[item.id] == nil,
@@ -6354,6 +6439,7 @@ final class DownloadCenter {
                       refreshedItem.backendIdentifier == backendIdentifier,
                       refreshedItem.status == expectedStatus,
                       refreshedItem.updatedAt == lifecycleVersion,
+                      torrentSelectionUpdates.contains(item.id) == false,
                       torrentStartTasks[item.id] == nil,
                       torrentPauseTasks[item.id] == nil,
                       torrentStopSeedingTasks[item.id] == nil,

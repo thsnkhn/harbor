@@ -15,6 +15,22 @@ struct TorrentContentsPreview: Equatable, Sendable {
     let totalBytes: Int64
     let metainfoData: Data?
     let infoHash: String
+    var selectedIndexes: Set<Int>? = nil
+    var completedIndexes: Set<Int> = []
+}
+
+enum TorrentSelectionError: LocalizedError {
+    case busy
+    case metadataPending
+    case emptySelection
+
+    var errorDescription: String? {
+        switch self {
+        case .busy: "The torrent is changing state. Try again when it is ready."
+        case .metadataPending: "Torrent metadata is not available yet. Try again after it loads."
+        case .emptySelection: "Select at least one file."
+        }
+    }
 }
 
 struct TorrentFileSelection: Codable, Equatable, Sendable {

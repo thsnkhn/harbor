@@ -5,6 +5,8 @@ nonisolated struct Aria2NextMagnetStatus: Decodable, Sendable {
         let index: String
         let path: String
         let length: String
+        var completedLength: String? = nil
+        var selected: String? = nil
     }
 
     nonisolated struct BitTorrent: Decodable, Sendable {
@@ -55,7 +57,14 @@ nonisolated struct Aria2NextMagnetStatus: Decodable, Sendable {
             files: descriptors,
             totalBytes: totalBytes,
             metainfoData: nil,
-            infoHash: resolvedInfoHash.lowercased()
+            infoHash: resolvedInfoHash.lowercased(),
+            selectedIndexes: files.contains(where: { $0.selected != nil })
+                ? Set(files.filter { $0.selected == "true" }.compactMap { Int($0.index) }) : nil,
+            completedIndexes: Set(files.filter {
+                guard let completed = $0.completedLength.flatMap(Int64.init),
+                      let length = Int64($0.length) else { return false }
+                return completed >= length
+            }.compactMap { Int($0.index) })
         )
     }
 

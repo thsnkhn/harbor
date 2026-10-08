@@ -94,6 +94,30 @@ final class BatchAddDownloadTests: XCTestCase {
         XCTAssertEqual(requests[2].sourceKind, .torrentFile)
     }
 
+    func testBatchKeepsEachResolvedMediaURLAndSkipsUnresolvedMedia() {
+        let urls = DownloadSourceImportService.supportedURLs(fromText: """
+        https://www.youtube.com/watch?v=first
+        https://www.youtube.com/watch?v=second
+        https://www.youtube.com/watch?v=unavailable
+        https://example.com/archive.zip
+        magnet:?xt=urn:btih:abcdef
+        https://www.youtube.com/watch?v=first
+        """)
+        let metadata = makeMediaFormatTestFixture().metadata
+        let requests = AddDownloadRequest.batch(
+            from: urls,
+            destinationFolder: URL(fileURLWithPath: "/tmp/harbor-batch"),
+            shouldStartImmediately: false,
+            tags: ["Research"],
+            mediaMetadata: [urls[0]: metadata, urls[1]: metadata]
+        )
+
+        XCTAssertEqual(requests.map(\.sourceURL), [urls[0], urls[1], urls[3], urls[4]])
+        XCTAssertEqual(requests.map(\.sourceKind), [.mediaURL, .mediaURL, .directURL, .magnetLink])
+        XCTAssertEqual(requests.prefix(2).map(\.mediaFormatPreference), [.bestAvailable, .bestAvailable])
+        XCTAssertTrue(requests.allSatisfy { !$0.shouldStartImmediately && $0.tags == ["Research"] })
+    }
+
     func testBatchRequestsDropUnsupportedURLs() {
         let destination = URL(fileURLWithPath: "/tmp/harbor-batch", isDirectory: true)
         let urls = [
