@@ -272,6 +272,14 @@ private struct DownloadToolbarContent: ToolbarContent {
         }
 
         ToolbarItem(placement: .primaryAction) {
+            Button("Clear Completed", systemImage: "checkmark.circle") {
+                center.clearCompleted()
+            }
+            .help("Remove completed entries. Keep downloaded files.")
+            .disabled(!center.hasCompletedDownloads)
+        }
+
+        ToolbarItem(placement: .primaryAction) {
             Menu {
                 ForEach(TrafficMode.allCases) { mode in
                     Toggle(

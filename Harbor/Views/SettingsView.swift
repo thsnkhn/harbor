@@ -19,6 +19,11 @@ struct SettingsView: View {
                     Label("Downloads", systemImage: "folder")
                 }
 
+            MediaSettingsTab(settings: settings)
+                .tabItem {
+                    Label("Media", systemImage: "play.rectangle")
+                }
+
             TorrentsSettingsTab(settings: settings)
                 .accessibilityIdentifier(HarborAccessibility.settingsTorrents)
                 .tabItem {

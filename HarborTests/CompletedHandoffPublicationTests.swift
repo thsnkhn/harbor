@@ -4,6 +4,48 @@ import XCTest
 @testable import Harbor
 
 extension HarborModelAndSafetyTests {
+    func testAutomaticCleanupRemovesPublishedDownloadOnlyWhenEnabled() async throws {
+        for enabled in [false, true] {
+            let root = FileManager.default.temporaryDirectory.appendingPathComponent("HarborAutoCompletion-\(UUID())")
+            try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(at: root) }
+            let suite = "HarborTests.AutoCompletion.\(UUID())"
+            let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+            defer { defaults.removePersistentDomain(forName: suite) }
+            let settings = AppSettingsStore(userDefaults: defaults)
+            settings.removeCompletedDownloadsAutomatically = enabled
+            let persistence = DownloadPersistence(directoryURL: root.appendingPathComponent("records"))
+            let handoffs = root.appendingPathComponent("handoffs")
+            let destination = root.appendingPathComponent("downloads")
+            let incoming = root.appendingPathComponent("incoming.download")
+            let payload = Data("Verified completed payload".utf8)
+            try payload.write(to: incoming)
+            let item = DownloadItem(
+                sourceURL: URL(string: "https://example.test/cleanup.bin")!, sourceKind: .directURL,
+                backend: .urlSession, preferredFilename: nil, destinationFolderPath: destination.path,
+                status: .paused
+            )
+            try await persistence.save([item.makeRecord()])
+            _ = try makeCompletedHandoff(
+                payloadURL: incoming, handoffDirectoryURL: handoffs, downloadID: item.id,
+                attemptIdentifier: UUID(), sourceURL: item.sourceURL, suggestedFilename: "cleanup.bin"
+            )
+            let center = DownloadCenter(settings: settings, persistence: persistence, completedHandoffDirectoryURL: handoffs)
+            await center.initializeIfNeeded()
+            if enabled {
+                for _ in 0..<200 where !center.downloads.isEmpty {
+                    try await Task.sleep(for: .milliseconds(10))
+                }
+            }
+            XCTAssertEqual(center.downloads.isEmpty, enabled)
+            XCTAssertEqual(try Data(contentsOf: destination.appendingPathComponent("cleanup.bin")), payload)
+            let records = try await persistence.load()
+            XCTAssertEqual(records.isEmpty, enabled)
+            XCTAssertTrue(try CompletedDownloadHandoffStore(directoryURL: handoffs).entries().isEmpty)
+            await center.shutdownForTermination()
+        }
+    }
+
     func testUnclaimableCompletionEventsDiscardTemporaryFiles() async throws {
         let suiteName = "HarborTests.UnclaimableCompletion.\(UUID().uuidString)"
         let userDefaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))

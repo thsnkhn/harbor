@@ -13,7 +13,8 @@ extension AddDownloadRequest {
         shouldStartImmediately: Bool,
         requestHeaders: [RequestHeader] = [],
         tags: [String] = [],
-        mediaMetadata: [URL: MediaDownloadMetadata] = [:]
+        mediaMetadata: [URL: MediaDownloadMetadata] = [:],
+        mediaDefaults: MediaDownloadDefaults = .init()
     ) -> [AddDownloadRequest] {
         urls.compactMap { url in
             guard let sourceKind = DownloadSourceKind.detect(from: url) else {
@@ -24,6 +25,15 @@ extension AddDownloadRequest {
             if AddDownloadMediaResolver.isKnownMediaHost(url), metadata == nil { return nil }
             if metadata != nil, !requestHeaders.isEmpty { return nil }
 
+            // TODO: Reuse the single-link format picker when batch rows support format overrides.
+            let preference: MediaDownloadFormatPreference?
+            if let metadata {
+                guard let resolved = try? mediaDefaults.preference(for: metadata) else { return nil }
+                preference = resolved
+            } else {
+                preference = nil
+            }
+
             return AddDownloadRequest(
                 sourceKind: metadata == nil ? sourceKind : .mediaURL,
                 sourceURL: url,
@@ -32,7 +42,7 @@ extension AddDownloadRequest {
                 shouldStartImmediately: shouldStartImmediately,
                 requestHeaders: requestHeaders,
                 mediaMetadata: metadata,
-                mediaFormatPreference: metadata == nil ? nil : .bestAvailable,
+                mediaFormatPreference: preference,
                 tags: tags
             )
         }

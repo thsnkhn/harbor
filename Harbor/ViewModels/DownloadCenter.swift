@@ -964,6 +964,7 @@ final class DownloadCenter {
         if shouldNotify {
             deliverNotificationIfEnabled(for: item, status: .completed)
         }
+        removeCompletedDownloadAutomatically(item)
         return true
     }
 
@@ -1204,6 +1205,7 @@ final class DownloadCenter {
             if shouldNotify {
                 deliverNotificationIfEnabled(for: item, status: .completed)
             }
+            removeCompletedDownloadAutomatically(item)
             return true
         } catch let validationError as DirectDownloadValidationError {
             var didPersistRejection = false
@@ -3837,7 +3839,18 @@ final class DownloadCenter {
         beginDurableRemoval(id: id, removingData: false)
     }
 
-    private func beginDurableRemoval(id: UUID, removingData: Bool) {
+    private func removeCompletedDownloadAutomatically(_ item: DownloadItem) {
+        guard canAutomaticallyRemove(item) else { return }
+        beginDurableRemoval(id: item.id, removingData: false, automatically: true)
+    }
+
+    private func canAutomaticallyRemove(_ item: DownloadItem) -> Bool {
+        settings.removeCompletedDownloadsAutomatically && !isShuttingDown
+            && item.status == .completed && item.backendIdentifier == nil
+            && item.lastError == nil
+    }
+
+    private func beginDurableRemoval(id: UUID, removingData: Bool, automatically: Bool = false) {
         guard item(for: id) != nil,
               removalTasks[id] == nil else {
             return
@@ -3864,7 +3877,7 @@ final class DownloadCenter {
                 self.removalTasks.removeValue(forKey: id)
                 return
             }
-            await self.performDurableRemoval(of: item, removingData: removingData)
+            await self.performDurableRemoval(of: item, removingData: removingData, automatically: automatically)
             self.removalTasks.removeValue(forKey: id)
             if self.resumePendingBrowserWriterMutationIfPossible(id: id) {
                 return
@@ -3876,7 +3889,8 @@ final class DownloadCenter {
 
     private func performDurableRemoval(
         of item: DownloadItem,
-        removingData: Bool
+        removingData: Bool,
+        automatically: Bool = false
     ) async {
         let id = item.id
         if let stopSeedingTask = torrentStopSeedingTasks[id] {
@@ -3898,6 +3912,9 @@ final class DownloadCenter {
         guard self.item(for: id) === item else {
             return
         }
+
+        // Completion and stop-seeding tasks can roll back while removal waits.
+        guard !automatically || canAutomaticallyRemove(item) else { return }
 
         let originalIndex = downloads.firstIndex { $0.id == id } ?? downloads.endIndex
         let statusBeforeQuiescence = item.status
@@ -4028,7 +4045,9 @@ final class DownloadCenter {
         }
         directAttemptStates.removeValue(forKey: id)
         activeMediaAttemptIdentifiers.removeValue(forKey: id)
-        moveOriginalTorrentFileToTrashIfNeeded(for: item)
+        if !automatically {
+            moveOriginalTorrentFileToTrashIfNeeded(for: item)
+        }
         removeManagedTorrentSourceIfNeeded(for: item)
     }
 
@@ -4483,6 +4502,7 @@ final class DownloadCenter {
                 )
             }
         }
+        removeCompletedDownloadAutomatically(item)
     }
 
     private func finalizeStoppedSeeding(_ item: DownloadItem) {
@@ -4496,6 +4516,7 @@ final class DownloadCenter {
         item.recordActivity(.seedingStopped)
         removeTorrentControlFiles(for: item)
         schedulePersist()
+        removeCompletedDownloadAutomatically(item)
         startNextQueuedDownloadsIfNeeded()
     }
 
@@ -4897,6 +4918,7 @@ final class DownloadCenter {
 
             self.applyExistingFileCompletion(existingFile, to: item)
             self.schedulePersist()
+            self.removeCompletedDownloadAutomatically(item)
             self.startNextQueuedDownloadsIfNeeded()
         }
     }
@@ -6840,6 +6862,9 @@ final class DownloadCenter {
             }
         }
 
+        if didPersistCompletion {
+            removeCompletedDownloadAutomatically(item)
+        }
         startNextQueuedDownloadsIfNeeded()
     }
 
@@ -8197,6 +8222,7 @@ final class DownloadCenter {
                         item.updatedAt = .now
                         do {
                             try await self.saveRecordsNow()
+                            self.removeCompletedDownloadAutomatically(item)
                         } catch {
                             item.backendIdentifier = originalIdentifier
                             item.lastError = error.localizedDescription

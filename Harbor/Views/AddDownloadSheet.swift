@@ -47,6 +47,7 @@ struct AddDownloadSheet: View {
     @State private var mediaPreviewError: String?
     @State private var batchMedia: [URL: MediaDownloadMetadata] = [:]
     @State private var batchErrors: [URL: String] = [:]
+    @State private var mediaDefaultsError: String?
     @State private var mediaFormatPreference: MediaDownloadFormatPreference = .bestAvailable
     @State private var hasMediaSavePermission = true
     @State private var isResolvingMedia = false
@@ -372,6 +373,15 @@ struct AddDownloadSheet: View {
                 }
             }
 
+            if let mediaDefaultsError {
+                Text(mediaDefaultsError)
+                    .foregroundStyle(.red)
+                Button("Use Best Available for This Download") {
+                    mediaFormatPreference = .bestAvailable
+                    self.mediaDefaultsError = nil
+                }
+            }
+
             if mediaPreview.capabilities.supportsMediaFormatSelection {
                 LabeledContent("Format") {
                     ScrollView {
@@ -493,6 +503,7 @@ struct AddDownloadSheet: View {
                     return
                 }
                 mediaFormatPreference = preference
+                mediaDefaultsError = nil
             }
         )
     }
@@ -511,6 +522,7 @@ struct AddDownloadSheet: View {
                     return
                 }
                 mediaFormatPreference = preference
+                mediaDefaultsError = nil
             }
         )
     }
@@ -673,6 +685,7 @@ struct AddDownloadSheet: View {
             if let mediaPreview {
                 return mediaPreview.supportsMediaDownload
                     && hasMediaSavePermission
+                    && mediaDefaultsError == nil
             }
 
             if isResolvingMedia {
@@ -708,8 +721,18 @@ struct AddDownloadSheet: View {
 
     private var readyBatchURLs: [URL] {
         parsedBatchURLs.filter { url in
-            batchErrors[url] == nil && (!isKnownMediaHost(url) || batchMedia[url] != nil)
+            batchErrors[url] == nil && batchDefaultError(for: url) == nil && (!isKnownMediaHost(url) || batchMedia[url] != nil)
                 && (batchMedia[url] == nil || requestHeaders.isEmpty)
+        }
+    }
+
+    private func batchDefaultError(for url: URL) -> String? {
+        guard let metadata = batchMedia[url] else { return nil }
+        do {
+            _ = try settings.mediaDefaults.preference(for: metadata)
+            return nil
+        } catch {
+            return error.localizedDescription
         }
     }
 
@@ -717,7 +740,7 @@ struct AddDownloadSheet: View {
         guard let url = entry.url else {
             return entry.status == .duplicate ? String(localized: "Duplicate") : String(localized: "Skipped")
         }
-        if let error = batchErrors[url] { return error }
+        if let error = batchErrors[url] ?? batchDefaultError(for: url) { return error }
         if isKnownMediaHost(url), batchMedia[url] == nil { return String(localized: "Checking…") }
         if batchMedia[url] != nil, !requestHeaders.isEmpty {
             return String(localized: "Remove request headers to add media downloads.")
@@ -757,9 +780,9 @@ struct AddDownloadSheet: View {
                                batchMedia[url] == nil, batchErrors[url] == nil {
                                 ProgressView().controlSize(.small)
                             } else {
-                                Image(systemName: entry.url.flatMap { batchErrors[$0] } == nil
+                                Image(systemName: entry.url.flatMap { batchErrors[$0] ?? batchDefaultError(for: $0) } == nil
                                       ? batchEntrySystemImage(for: entry.status) : "exclamationmark.triangle.fill")
-                                    .foregroundStyle(entry.url.flatMap { batchErrors[$0] } == nil
+                                    .foregroundStyle(entry.url.flatMap { batchErrors[$0] ?? batchDefaultError(for: $0) } == nil
                                                      ? batchEntryColor(for: entry.status) : .orange)
                             }
                             Text(entry.text)
@@ -884,7 +907,8 @@ struct AddDownloadSheet: View {
                 destinationFolder: folderURL,
                 shouldStartImmediately: shouldStartImmediately,
                 requestHeaders: requestHeaders,
-                mediaMetadata: batchMedia
+                mediaMetadata: batchMedia,
+                mediaDefaults: settings.mediaDefaults
             )
 
             guard requests.isEmpty == false else {
@@ -946,6 +970,10 @@ struct AddDownloadSheet: View {
                     return
                 }
 
+                guard mediaDefaultsError == nil else {
+                    validationMessage = mediaDefaultsError
+                    return
+                }
                 sourceKind = .mediaURL
                 requestMediaMetadata = metadata
                 requestMediaFormatPreference = mediaFormatPreference
@@ -1269,7 +1297,13 @@ struct AddDownloadSheet: View {
             }
 
             mediaPreview = metadata
-            mediaFormatPreference = .bestAvailable
+            do {
+                mediaFormatPreference = try settings.mediaDefaults.preference(for: metadata)
+                mediaDefaultsError = nil
+            } catch {
+                mediaFormatPreference = .bestAvailable
+                mediaDefaultsError = error.localizedDescription
+            }
             return metadata
         } catch {
             if showErrors, mediaPreviewGeneration == generation {
@@ -1281,6 +1315,7 @@ struct AddDownloadSheet: View {
 
     private func resetMediaPreview() {
         mediaPreview = nil
+        mediaDefaultsError = nil
         mediaPreviewError = nil
         isResolvingMedia = false
         hasMediaSavePermission = true

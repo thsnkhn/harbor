@@ -112,10 +112,12 @@ struct DownloadDataRemovalConfirmation: ViewModifier {
                 ids = []
                 center.removeDownloadsAndData(ids: targetIDs)
             }
+            .keyboardShortcut(.defaultAction)
 
             Button("Cancel", role: .cancel) {
                 ids = []
             }
+            .keyboardShortcut(.cancelAction)
         } message: {
             Text(center.dataRemovalConfirmationMessage(ids: ids))
         }

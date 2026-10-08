@@ -86,6 +86,9 @@ final class AppSettingsStore {
         static let torrentWatchFolderPath = "torrentWatchFolderPath"
         static let torrentWatchFolderEnabled = "torrentWatchFolderEnabled"
         static let seedNewTorrents = "seedNewTorrents"
+        static let mediaPreferredFormat = "mediaPreferredFormat"
+        static let mediaMaximumResolution = "mediaMaximumResolution"
+        static let removeCompletedDownloadsAutomatically = "removeCompletedDownloadsAutomatically"
         static let stopSeedingAtRatioEnabled = "stopSeedingAtRatioEnabled"
         static let stopSeedingRatio = "stopSeedingRatio"
         static let maxConcurrentDownloads = "maxConcurrentDownloads"
@@ -165,6 +168,24 @@ final class AppSettingsStore {
         didSet {
             userDefaults.set(torrentWatchFolderEnabled, forKey: Keys.torrentWatchFolderEnabled)
             notifyTorrentAutomationSettingsChanged()
+        }
+    }
+
+    var mediaPreferredFormat: MediaPreferredFormat {
+        didSet { userDefaults.set(mediaPreferredFormat.rawValue, forKey: Keys.mediaPreferredFormat) }
+    }
+
+    var mediaMaximumResolution: MediaMaximumResolution {
+        didSet { userDefaults.set(mediaMaximumResolution.rawValue, forKey: Keys.mediaMaximumResolution) }
+    }
+
+    var mediaDefaults: MediaDownloadDefaults {
+        MediaDownloadDefaults(format: mediaPreferredFormat, maximumResolution: mediaMaximumResolution)
+    }
+
+    var removeCompletedDownloadsAutomatically: Bool {
+        didSet {
+            userDefaults.set(removeCompletedDownloadsAutomatically, forKey: Keys.removeCompletedDownloadsAutomatically)
         }
     }
 
@@ -386,6 +407,16 @@ final class AppSettingsStore {
         networkBindingCatalog: (any NetworkBindingCataloging)? = nil
     ) {
         self.userDefaults = userDefaults
+        self.mediaPreferredFormat = MediaPreferredFormat(
+            rawValue: userDefaults.string(forKey: Keys.mediaPreferredFormat) ?? ""
+        ) ?? .bestAvailable
+        self.mediaMaximumResolution = MediaMaximumResolution(
+            rawValue: userDefaults.integer(forKey: Keys.mediaMaximumResolution)
+        ) ?? .bestAvailable
+        self.removeCompletedDownloadsAutomatically = userDefaults.bool(
+            forKey: Keys.removeCompletedDownloadsAutomatically
+        )
+
         let resolvedLoginItemController = loginItemController ?? SystemLoginItemController()
         self.loginItemController = resolvedLoginItemController
         self.networkBindingCatalog = networkBindingCatalog ?? SystemNetworkBindingCatalog()

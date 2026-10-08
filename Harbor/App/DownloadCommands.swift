@@ -97,6 +97,7 @@ struct DownloadCommands: Commands {
             Button("Remove Selected from List") {
                 center.removeSelectedDownload()
             }
+            .keyboardShortcut(.delete, modifiers: .command)
             .disabled(center.selectedDownload == nil)
 
             Button("Clear Completed") {
