@@ -4045,7 +4045,12 @@ final class DownloadCenter {
         }
         directAttemptStates.removeValue(forKey: id)
         activeMediaAttemptIdentifiers.removeValue(forKey: id)
-        if !automatically {
+        // Keep sources outside the watch folder. A watched source must leave
+        // the folder or the next scan can queue the completed torrent again.
+        let sourceIsWatched = settings.torrentWatchFolderEnabled && item.sourceURL.isFileURL
+            && item.sourceURL.deletingLastPathComponent().resolvingSymlinksInPath()
+                == settings.torrentWatchFolderURL.resolvingSymlinksInPath()
+        if !automatically || sourceIsWatched {
             moveOriginalTorrentFileToTrashIfNeeded(for: item)
         }
         removeManagedTorrentSourceIfNeeded(for: item)

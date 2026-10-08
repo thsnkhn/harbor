@@ -9,12 +9,8 @@ run_for_arch() {
   local architecture="$1"
   shift
 
-  if /usr/bin/arch "-${architecture}" /usr/bin/true >/dev/null 2>&1; then
-    echo "Launching ${architecture}: $(basename "$1")" >&2
-    /usr/bin/arch "-${architecture}" "$@"
-  else
-    echo "Skipping ${architecture} launch check because this Mac cannot run it."
-  fi
+  echo "Launching ${architecture}: $(basename "$1")" >&2
+  /usr/bin/arch "-${architecture}" "$@"
 }
 
 check_executable() {
@@ -35,6 +31,11 @@ for architecture in arm64 x86_64; do
   check_executable "${media_bin}/ffprobe"
   check_executable "${torrent_bin}/aria2-next"
 
+  if ! /usr/bin/arch "-${architecture}" /usr/bin/true >/dev/null 2>&1; then
+    echo "Skipping ${architecture} execution checks: this Mac cannot run that architecture." >&2
+    continue
+  fi
+
   run_for_arch "$architecture" "${media_bin}/yt-dlp" --version >/dev/null
   run_for_arch "$architecture" "${media_bin}/deno" --version >/dev/null
   runtime_report="$(run_for_arch "$architecture" "${media_bin}/yt-dlp" --ignore-config --verbose --js-runtimes "deno:${media_bin}/deno" --simulate about:blank 2>&1 || true)"
@@ -48,4 +49,4 @@ for architecture in arm64 x86_64; do
   run_for_arch "$architecture" "${torrent_bin}/aria2-next" --version >/dev/null
 done
 
-echo "Vendored media and torrent runtime binaries launched successfully"
+echo "Vendored runtime checks passed for architectures this Mac can run."

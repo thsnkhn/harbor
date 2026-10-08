@@ -58,7 +58,7 @@ struct DownloadsSettingsTab: View {
 
             Section("Download List") {
                 Toggle("Remove completed downloads from the list", isOn: $settings.removeCompletedDownloadsAutomatically)
-                Text("Removes entries when downloads finish. Files stay in their save folder. Torrents stay listed until seeding stops.")
+                Text("Removes entries when downloads finish. Files stay in their save folder. Torrents stay listed until seeding stops. Source .torrent files in the watch folder move to Trash to prevent another import.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
