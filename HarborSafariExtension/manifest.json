@@ -1,0 +1,38 @@
+{
+    "manifest_version": 3,
+    "name": "Harbor",
+    "description": "Hands Safari downloads, magnet links and video pages to Harbor.",
+    "version": "1.0",
+
+    "icons": {
+        "64": "icon-64.png",
+        "128": "icon-128.png",
+        "256": "icon-256.png",
+        "512": "icon-512.png"
+    },
+
+    "background": {
+        "scripts": ["shared.js", "background.js"],
+        "persistent": false
+    },
+
+    "content_scripts": [{
+        "js": ["shared.js", "content.js"],
+        "matches": ["<all_urls>"],
+        "run_at": "document_start"
+    }],
+
+    "action": {
+        "default_popup": "popup.html",
+        "default_icon": {
+            "16": "icon-16.png",
+            "32": "icon-32.png"
+        }
+    },
+
+    "permissions": [
+        "contextMenus",
+        "storage",
+        "activeTab"
+    ]
+}

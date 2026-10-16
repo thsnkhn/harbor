@@ -1,0 +1,26 @@
+:root {
+    color-scheme: light dark;
+}
+
+body {
+    width: 260px;
+    margin: 0;
+    padding: 12px;
+    font: 13px -apple-system, sans-serif;
+}
+
+label {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+label:has(input:disabled) {
+    opacity: 0.5;
+}
+
+button {
+    width: 100%;
+    margin-top: 4px;
+}

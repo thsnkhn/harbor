@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		0D5F5A5C2F700E1900A1B2C3 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 0D5F5A5B2F700E1900A1B2C3 /* Sparkle */; };
+		0D9000102FB0000000A1B2C3 /* HarborSafariExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 0D9000012FB0000000A1B2C3 /* HarborSafariExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -25,7 +26,28 @@
 			remoteGlobalIDString = 0DA35C532F6338930095E98E;
 			remoteInfo = Harbor;
 		};
+		0D9000072FB0000000A1B2C3 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 0DA35C4C2F6338930095E98E /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 0D9000062FB0000000A1B2C3;
+			remoteInfo = HarborSafariExtension;
+		};
 /* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		0D9000112FB0000000A1B2C3 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				0D9000102FB0000000A1B2C3 /* HarborSafariExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		0D4700012F90000000A1B2C3 /* HarborTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HarborTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -34,6 +56,7 @@
 		0D80000D2FA0000000A1B2C3 /* HarborUISystem.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = HarborUISystem.xctestplan; sourceTree = "<group>"; };
 		0D80000E2FA0000000A1B2C3 /* HarborUILiveCanary.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = HarborUILiveCanary.xctestplan; sourceTree = "<group>"; };
 		0DA35C542F6338930095E98E /* Harbor.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Harbor.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		0D9000012FB0000000A1B2C3 /* HarborSafariExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = HarborSafariExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -43,6 +66,13 @@
 				Info.plist,
 			);
 			target = 0DA35C532F6338930095E98E /* Harbor */;
+		};
+		0D90000C2FB0000000A1B2C3 /* Exceptions for "HarborSafariExtension" folder in "HarborSafariExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 0D9000062FB0000000A1B2C3 /* HarborSafariExtension */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
@@ -63,6 +93,14 @@
 				0D7E9A7A2F7170E900A1B2C3 /* Exceptions for "Harbor" folder in "Harbor" target */,
 			);
 			path = Harbor;
+			sourceTree = "<group>";
+		};
+		0D9000022FB0000000A1B2C3 /* HarborSafariExtension */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				0D90000C2FB0000000A1B2C3 /* Exceptions for "HarborSafariExtension" folder in "HarborSafariExtension" target */,
+			);
+			path = HarborSafariExtension;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -90,6 +128,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		0D9000032FB0000000A1B2C3 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -97,6 +142,7 @@
 			isa = PBXGroup;
 			children = (
 				0DA35C562F6338930095E98E /* Harbor */,
+				0D9000022FB0000000A1B2C3 /* HarborSafariExtension */,
 				0D4700022F90000000A1B2C3 /* HarborTests */,
 				0D8000022FA0000000A1B2C3 /* HarborUITests */,
 				0D80000C2FA0000000A1B2C3 /* HarborUIOffline.xctestplan */,
@@ -112,6 +158,7 @@
 				0DA35C542F6338930095E98E /* Harbor.app */,
 				0D4700012F90000000A1B2C3 /* HarborTests.xctest */,
 				0D8000012FA0000000A1B2C3 /* HarborUITests.xctest */,
+				0D9000012FB0000000A1B2C3 /* HarborSafariExtension.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -165,6 +212,28 @@
 			productReference = 0D8000012FA0000000A1B2C3 /* HarborUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
+		0D9000062FB0000000A1B2C3 /* HarborSafariExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 0D90000B2FB0000000A1B2C3 /* Build configuration list for PBXNativeTarget "HarborSafariExtension" */;
+			buildPhases = (
+				0D9000052FB0000000A1B2C3 /* Sources */,
+				0D9000032FB0000000A1B2C3 /* Frameworks */,
+				0D9000042FB0000000A1B2C3 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				0D9000022FB0000000A1B2C3 /* HarborSafariExtension */,
+			);
+			name = HarborSafariExtension;
+			packageProductDependencies = (
+			);
+			productName = HarborSafariExtension;
+			productReference = 0D9000012FB0000000A1B2C3 /* HarborSafariExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		0DA35C532F6338930095E98E /* Harbor */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 0DA35C5F2F6338940095E98E /* Build configuration list for PBXNativeTarget "Harbor" */;
@@ -172,12 +241,14 @@
 				0DA35C502F6338930095E98E /* Sources */,
 				0DA35C512F6338930095E98E /* Frameworks */,
 				0DA35C522F6338930095E98E /* Resources */,
+				0D9000112FB0000000A1B2C3 /* Embed Foundation Extensions */,
 				0DFA3D392F6F7A79006B52A1 /* Copy Vendored Runtimes */,
 				0D190F562F6365560036F3C2 /* Sign Embedded Runtimes */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				0D9000082FB0000000A1B2C3 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				0DA35C562F6338930095E98E /* Harbor */,
@@ -211,6 +282,9 @@
 					0DA35C532F6338930095E98E = {
 						CreatedOnToolsVersion = 26.3;
 					};
+					0D9000062FB0000000A1B2C3 = {
+						CreatedOnToolsVersion = 27.0;
+					};
 				};
 			};
 			buildConfigurationList = 0DA35C4F2F6338930095E98E /* Build configuration list for PBXProject "Harbor" */;
@@ -236,6 +310,7 @@
 				0DA35C532F6338930095E98E /* Harbor */,
 				0D4700062F90000000A1B2C3 /* HarborTests */,
 				0D8000062FA0000000A1B2C3 /* HarborUITests */,
+				0D9000062FB0000000A1B2C3 /* HarborSafariExtension */,
 			);
 		};
 /* End PBXProject section */
@@ -256,6 +331,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		0DA35C522F6338930095E98E /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		0D9000042FB0000000A1B2C3 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -341,6 +423,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		0D9000052FB0000000A1B2C3 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -353,6 +442,11 @@
 			isa = PBXTargetDependency;
 			target = 0DA35C532F6338930095E98E /* Harbor */;
 			targetProxy = 0D8000072FA0000000A1B2C3 /* PBXContainerItemProxy */;
+		};
+		0D9000082FB0000000A1B2C3 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 0D9000062FB0000000A1B2C3 /* HarborSafariExtension */;
+			targetProxy = 0D9000072FB0000000A1B2C3 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -649,6 +743,62 @@
 			};
 			name = Release;
 		};
+		0D9000092FB0000000A1B2C3 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 44;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = HarborSafariExtension/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Harbor;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 15.6;
+				MARKETING_VERSION = 1.8.5;
+				PRODUCT_BUNDLE_IDENTIFIER = co.hapy.harbor.SafariExtension;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		0D90000A2FB0000000A1B2C3 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 44;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = HarborSafariExtension/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Harbor;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 15.6;
+				MARKETING_VERSION = 1.8.5;
+				PRODUCT_BUNDLE_IDENTIFIER = co.hapy.harbor.SafariExtension;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -684,6 +834,15 @@
 			buildConfigurations = (
 				0DA35C602F6338940095E98E /* Debug */,
 				0DA35C612F6338940095E98E /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		0D90000B2FB0000000A1B2C3 /* Build configuration list for PBXNativeTarget "HarborSafariExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				0D9000092FB0000000A1B2C3 /* Debug */,
+				0D90000A2FB0000000A1B2C3 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
