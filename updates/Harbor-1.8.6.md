@@ -1,0 +1,4 @@
+- Add an experimental Safari extension to send download links to Harbor. Open Settings → Experimental to set it up.
+- Fix Safari context-menu persistence, content-script reloads, and site exclusions in embedded frames.
+- Add a setting to control torrent uploads.
+- Fix batch media and MediaFire downloads.
