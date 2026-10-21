@@ -101,6 +101,8 @@ final class DownloadCenter {
     @ObservationIgnored private let torrentSidecarFileService: TorrentSidecarFileService
     @ObservationIgnored private let torrentWatchFolderService: TorrentWatchFolderService
     @ObservationIgnored private let networkBindingMonitor: NetworkBindingMonitor
+    @ObservationIgnored private let incomingPortMapper = NATPMPPortMapper()
+    @ObservationIgnored private var listenPortTask: Task<Void, Never>?
     @ObservationIgnored private let directPauseOperation: DirectPauseOperation
     @ObservationIgnored private let mediaCleanupOperation: MediaCleanupOperation
     @ObservationIgnored private let mediaPauseOperation: MediaPauseOperation
@@ -353,6 +355,12 @@ final class DownloadCenter {
         self.networkBindingMonitor.statusDidChange = { [weak self] status in
             self?.handleNetworkBindingStatus(status)
         }
+        settings.incomingPortSettingsDidChange = { [weak self] in
+            self?.configureIncomingPort()
+        }
+        self.incomingPortMapper.statusDidChange = { [weak self] status in
+            self?.handleIncomingPortStatus(status)
+        }
         settings.torrentVPN.routeDidChange = { [weak self] route in
             self?.applyVPNRoute(route)
         }
@@ -367,9 +375,10 @@ final class DownloadCenter {
         directRetryTasks.values.forEach { $0.cancel() }
         orphanedTorrentCleanupTasks.values.forEach { $0.cancel() }
         networkBindingTask?.cancel()
-        Task { @MainActor [torrentWatchFolderService, networkBindingMonitor] in
+        Task { @MainActor [torrentWatchFolderService, networkBindingMonitor, incomingPortMapper] in
             torrentWatchFolderService.stop()
             networkBindingMonitor.stop()
+            incomingPortMapper.stop()
         }
         Task { [mediaService] in
             await mediaService?.shutdown()
@@ -415,6 +424,8 @@ final class DownloadCenter {
             // know its interface by then, or a restored torrent would briefly
             // transfer over whatever route the system happens to prefer.
             await applyNetworkBindingBeforeEngineUse()
+            configureIncomingPort()
+            await listenPortTask?.value
             await torrentService.setVPNRoute(settings.torrentVPN.route)
 
             do {
@@ -2045,6 +2056,7 @@ final class DownloadCenter {
 
     private func handleNetworkBindingStatus(_ status: NetworkBindingStatus) {
         settings.updateNetworkBindingStatus(status)
+        configureIncomingPort()
         guard !settings.torrentVPNEnabled else { return }
 
         guard isShuttingDown == false else {
@@ -2056,6 +2068,47 @@ final class DownloadCenter {
             suspendTorrentsForUnavailableNetwork(status)
         case .unrestricted, .bound:
             resumeTorrentsForAvailableNetwork(status)
+        }
+    }
+
+    private func configureIncomingPort() {
+        guard isShuttingDown == false else {
+            return
+        }
+
+        switch settings.torrentIncomingPortMode {
+        case .off:
+            incomingPortMapper.stop()
+            applyListenPort(nil)
+        case .manual:
+            incomingPortMapper.stop()
+            applyListenPort(settings.torrentIncomingPort)
+        case .automatic:
+            // The gateway sits on the bound VPN. The last mapped port stays in
+            // use while it is gone, since the binding pauses torrents anyway.
+            if case let .bound(_, binding) = settings.networkBindingStatus,
+               let address = binding.ipv4Address,
+               let gateway = NATPMP.gateway(forAddress: address) {
+                incomingPortMapper.start(gateway: gateway)
+            } else {
+                incomingPortMapper.stop()
+            }
+        }
+    }
+
+    private func handleIncomingPortStatus(_ status: IncomingPortStatus) {
+        settings.updateIncomingPortStatus(status)
+        if case let .mapped(port) = status, settings.torrentIncomingPortMode == .automatic {
+            applyListenPort(port)
+        }
+    }
+
+    /// Chained so quick setting changes reach the engine in order.
+    private func applyListenPort(_ port: Int?) {
+        let previousTask = listenPortTask
+        listenPortTask = Task { [torrentService] in
+            await previousTask?.value
+            await torrentService.setListenPort(port)
         }
     }
 
@@ -2252,6 +2305,7 @@ final class DownloadCenter {
         readyDirectRetries.removeAll()
         torrentWatchFolderService.stop()
         networkBindingMonitor.stop()
+        incomingPortMapper.stop()
         networkBindingTask?.cancel()
         networkBindingTask = nil
 
@@ -2511,6 +2565,7 @@ final class DownloadCenter {
         readyDirectRetries.removeAll()
         torrentWatchFolderService.stop()
         networkBindingMonitor.stop()
+        incomingPortMapper.stop()
         networkBindingTask?.cancel()
         networkBindingTask = nil
         await cancelPendingPersistenceAndWait()

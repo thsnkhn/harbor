@@ -253,6 +253,8 @@ struct TorrentsSettingsTab: View {
                     .foregroundStyle(.secondary)
             }
 
+            IncomingPortSection(settings: settings)
+
             Section("Peer Blocklist") {
                 Toggle("Enable IP blocklist", isOn: $settings.torrentBlocklistEnabled)
 
@@ -496,6 +498,95 @@ private struct TorrentWatchStatusRow: View {
             .green
         case .unavailable:
             .orange
+        }
+    }
+}
+
+private struct IncomingPortSection: View {
+    let settings: AppSettingsStore
+    @State private var portDraft = 0
+    @FocusState private var isPortFieldFocused: Bool
+
+    var body: some View {
+        @Bindable var settings = settings
+
+        Section("Incoming Port") {
+            Picker("Incoming Port", selection: $settings.torrentIncomingPortMode) {
+                Text("Default").tag(TorrentIncomingPortMode.off)
+                Text("Manual").tag(TorrentIncomingPortMode.manual)
+                Text("Automatic (NAT-PMP)").tag(TorrentIncomingPortMode.automatic)
+            }
+            .accessibilityIdentifier(HarborAccessibility.settingsIncomingPortPicker)
+
+            switch settings.torrentIncomingPortMode {
+            case .off:
+                Text("aria2 picks a port between 6881 and 6999.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            case .manual:
+                // Commits only when editing ends: every committed port
+                // restarts the torrent engine.
+                LabeledContent("Port") {
+                    TextField("Port", value: $portDraft, format: .number.grouping(.never))
+                        .labelsHidden()
+                        .textFieldStyle(.roundedBorder)
+                        .multilineTextAlignment(.trailing)
+                        .monospacedDigit()
+                        .frame(width: 80)
+                        .focused($isPortFieldFocused)
+                        .onSubmit(commitPort)
+                }
+                Text("Forward this port for TCP and UDP on your router. Changing it restarts the torrent engine.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            case .automatic:
+                if settings.networkBindingSelection == .any {
+                    Label("Select your VPN as the network interface above.", systemImage: "exclamationmark.triangle")
+                        .foregroundStyle(.orange)
+                } else {
+                    IncomingPortStatusRow(status: settings.incomingPortStatus)
+                }
+                Text("Requests the forwarded port from your VPN and renews it while Harbor runs. For ProtonVPN, connect to a P2P server with port forwarding turned on. A new port restarts the torrent engine.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .onAppear { portDraft = settings.torrentIncomingPort }
+        .onChange(of: isPortFieldFocused) { _, isFocused in
+            if isFocused == false {
+                commitPort()
+            }
+        }
+    }
+
+    private func commitPort() {
+        let port = AppSettingsStore.clampedIncomingPort(portDraft)
+        portDraft = port
+        if settings.torrentIncomingPort != port {
+            settings.torrentIncomingPort = port
+        }
+    }
+}
+
+private struct IncomingPortStatusRow: View {
+    let status: IncomingPortStatus
+
+    var body: some View {
+        LabeledContent("Status") {
+            switch status {
+            case .waiting:
+                Label("Waiting for the VPN", systemImage: "circle")
+                    .foregroundStyle(.secondary)
+            case let .mapped(port):
+                Label(
+                    String(format: String(localized: "Forwarded port %@"), String(port)),
+                    systemImage: "checkmark.shield"
+                )
+                .foregroundStyle(.green)
+            case .failed:
+                Label("The VPN did not assign a port", systemImage: "exclamationmark.triangle")
+                    .foregroundStyle(.orange)
+            }
         }
     }
 }

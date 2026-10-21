@@ -303,6 +303,7 @@ actor Aria2TorrentService {
     private var vpnRoute: TorrentVPNRoute = .disabled
     private var peerBlocklistRules: [String] = []
     private var networkBinding: NetworkBindingStatus = .unrestricted
+    private var listenPort: Int?
     private var isRetryingAfterSessionRecovery = false
     private var peerDiscoveryMonitor: Task<Void, Never>?
     private var peerDiscoveryUpdate: EngineOperationState?
@@ -356,6 +357,22 @@ actor Aria2TorrentService {
 
         // Persist first so the restart, or the refusal to restart while the
         // interface is gone, keeps every torrent recoverable.
+        try? await saveSession()
+        resetDaemon(terminateIfRunning: true)
+    }
+
+    /// aria2 fixes its listening ports at launch and cannot change them over
+    /// RPC, so a new port restarts the daemon.
+    func setListenPort(_ listenPort: Int?) async {
+        guard self.listenPort != listenPort else {
+            return
+        }
+        self.listenPort = listenPort
+
+        guard let process, process.isRunning else {
+            return
+        }
+
         try? await saveSession()
         resetDaemon(terminateIfRunning: true)
     }
@@ -1320,6 +1337,7 @@ actor Aria2TorrentService {
                 displayName: "Private VPN",
                 binding: ResolvedNetworkBinding(interfaceName: "lo0", ipv4Address: "127.0.0.1")
             ),
+            listenPort: listenPort,
             proxyURI: proxyURI
         )
 
@@ -1416,6 +1434,7 @@ actor Aria2TorrentService {
         hostProcessIdentifier: pid_t,
         transferSettings: DownloadTransferSettings,
         networkBinding: NetworkBindingStatus,
+        listenPort: Int? = nil,
         proxyURI: String? = nil
     ) -> [String] {
         var arguments = [
@@ -1459,6 +1478,12 @@ actor Aria2TorrentService {
         // covers every BitTorrent socket without affecting direct downloads.
         if case let .bound(_, binding) = networkBinding {
             arguments.append("--bt-interface=\(binding.interfaceName)")
+        }
+        // A forwarded port is open for TCP and UDP, so peers and DHT share it.
+        // aria2 also sends UDP tracker requests from the DHT socket.
+        if let listenPort {
+            arguments.append("--listen-port=\(listenPort)")
+            arguments.append("--dht-listen-port=\(listenPort)")
         }
         if let proxyURI {
             arguments.append("--bt-proxy=\(proxyURI)")
