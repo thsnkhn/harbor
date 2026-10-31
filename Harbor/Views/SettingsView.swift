@@ -23,11 +23,7 @@ struct SettingsView: View {
                     .tag(pane)
             }
         }
-        .background(SettingsWindowResizing())
-        .frame(
-            minWidth: 760, idealWidth: 840, maxWidth: .infinity,
-            minHeight: 620, idealHeight: 720, maxHeight: .infinity
-        )
+        .frame(width: 600, height: 520)
     }
 
     @ViewBuilder
@@ -88,15 +84,3 @@ private enum SettingsPane: String, CaseIterable, Identifiable {
     }
 }
 
-// Settings scenes can omit the resizable style even with contentMinSize.
-private struct SettingsWindowResizing: NSViewRepresentable {
-    func makeNSView(context: Context) -> NSView { ResizableSettingsView() }
-    func updateNSView(_ nsView: NSView, context: Context) {}
-
-    private final class ResizableSettingsView: NSView {
-        override func viewDidMoveToWindow() {
-            super.viewDidMoveToWindow()
-            window?.styleMask.insert(.resizable)
-        }
-    }
-}

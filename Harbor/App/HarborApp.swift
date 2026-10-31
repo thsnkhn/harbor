@@ -9,6 +9,11 @@ struct HarborApp: App {
     @StateObject private var updater: AppUpdater
 
     init() {
+        let defaults = UserDefaults.standard
+        if !defaults.bool(forKey: "settingsWindowSizeReset") {
+            defaults.removeObject(forKey: "NSWindow Frame com_apple_SwiftUI_Settings_window")
+            defaults.set(true, forKey: "settingsWindowSizeReset")
+        }
         let settings = AppSettingsStore(userDefaults: HarborTestRuntime.userDefaults)
         _settings = State(initialValue: settings)
         let center = DownloadCenter(
@@ -67,8 +72,8 @@ struct HarborApp: App {
                 .modifier(HarborAppearance(appearance: settings.appearance))
                 .defaultAppStorage(HarborTestRuntime.userDefaults)
         }
-        .defaultSize(width: 840, height: 720)
-        .windowResizability(.contentMinSize)
+        .defaultSize(width: 600, height: 520)
+        .windowResizability(.contentSize)
     }
 }
 

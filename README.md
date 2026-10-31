@@ -19,7 +19,7 @@
       <img src="https://img.shields.io/badge/Firefox-Extension-FF7139?style=for-the-badge&logo=firefoxbrowser&logoColor=white" alt="Firefox extension" />
     </a>
     <br />
-    <sub>Third-party extensions by <a href="https://github.com/head-less-ghost">head-less-ghost</a>. A local helper is required; use manual forwarding.</sub>
+    <sub>Third-party extensions by <a href="https://github.com/head-less-ghost">head-less-ghost</a>. A local helper is required.</sub>
   </p>
 
   <p>
