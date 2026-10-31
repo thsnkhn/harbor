@@ -6,7 +6,7 @@
   <p><strong>A beautiful, fully native macOS download manager built for real Mac workflows.</strong></p>
 
   <p>
-    <a href="https://github.com/thsnkhn/harbor/releases/latest/download/Harbor.dmg">
+    <a href="https://github.com/thsnkhn/harbor/releases/latest">
       <img src="https://img.shields.io/badge/download-latest%20DMG-007AFF?style=for-the-badge&logo=apple&logoColor=white" alt="Download latest DMG" />
     </a>
   </p>
@@ -72,7 +72,7 @@ brew install --cask harbor
 
 Or download the latest DMG:
 
-- Download the [latest DMG](https://github.com/thsnkhn/harbor/releases/latest/download/Harbor.dmg)
+- Download the [latest DMG](https://github.com/thsnkhn/harbor/releases/latest) for your Mac's processor
 - Drag `Harbor.app` into `Applications`
 
 Harbor can check for updates from the app menu. It requires macOS 15.6 or later.
