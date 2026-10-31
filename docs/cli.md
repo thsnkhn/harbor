@@ -124,3 +124,13 @@ app-support, settings, and agent folders, plus the existing local fixture server
 `--keep` leaves that instance open for manual UI review. Development overrides
 `HARBOR_CLI_DIRECTORY` and `HARBOR_AGENT_HOME` isolate the socket and installer.
 A custom socket directory disables automatic app launch in the client.
+
+## Open a link in Harbor
+
+Extensions and other tools can open the Add Download window with a link:
+
+```sh
+open 'harbor://download?url=https%3A%2F%2Fexample.com%2Ffile.zip'
+```
+
+Percent-encode the HTTP or HTTPS download URL in the `url` query value.
