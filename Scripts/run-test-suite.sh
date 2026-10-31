@@ -6,7 +6,8 @@ project_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 mode="${1:-all}"
 derived_data_path="${project_dir}/build/HarborDerivedData"
 timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
-results_root="${project_dir}/build/TestResults/${timestamp}"
+results_parent="${project_dir}/build/TestResults"
+results_root="${results_parent}/${timestamp}"
 fixture_root=""
 fixture_pid=""
 
@@ -175,6 +176,25 @@ if [[ "$mode" == "system" || "$mode" == "all" ]]; then
 fi
 if [[ "$mode" == "live" || "$mode" == "all" ]]; then
   run_xcode_group LiveCanary HarborUILiveCanary || status=1
+fi
+
+if [[ "$status" -eq 0 ]]; then
+  if touch "${results_root}/.passed"; then
+    passed_runs=()
+    for result_dir in "${results_parent}"/*; do
+      if [[ -d "$result_dir" && ! -L "$result_dir" && "${result_dir##*/}" =~ ^[0-9]{8}T[0-9]{6}Z$ && -f "${result_dir}/.passed" ]]; then
+        passed_runs+=("$result_dir")
+      fi
+    done
+    remove_count=$((${#passed_runs[@]} - 2))
+    for ((index = 0; index < remove_count; index++)); do
+      rm -rf -- "${passed_runs[$index]}"
+    done
+  else
+    echo "Could not mark the run as passed; older results were kept." >&2
+  fi
+else
+  touch "${results_root}/.failed"
 fi
 
 echo "Results: $results_root"
