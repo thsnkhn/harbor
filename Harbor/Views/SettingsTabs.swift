@@ -253,6 +253,8 @@ struct TorrentsSettingsTab: View {
                     .foregroundStyle(.secondary)
             }
 
+            IncomingPortSection(settings: settings)
+
             Section("Peer Blocklist") {
                 Toggle("Enable IP blocklist", isOn: $settings.torrentBlocklistEnabled)
 
@@ -496,6 +498,66 @@ private struct TorrentWatchStatusRow: View {
             .green
         case .unavailable:
             .orange
+        }
+    }
+}
+
+private struct IncomingPortSection: View {
+    let settings: AppSettingsStore
+    @State private var portDraft = 0
+    @FocusState private var isPortFieldFocused: Bool
+
+    var body: some View {
+        @Bindable var settings = settings
+
+        Section("Incoming Port") {
+            Picker("Incoming Port", selection: $settings.torrentIncomingPortMode) {
+                Text("Default (6881)").tag(TorrentIncomingPortMode.off)
+                Text("Manual").tag(TorrentIncomingPortMode.manual)
+            }
+            .accessibilityIdentifier(HarborAccessibility.settingsIncomingPortPicker)
+            .disabled(settings.torrentVPNEnabled)
+
+            switch settings.torrentIncomingPortMode {
+            case .off:
+                EmptyView()
+            case .manual:
+                // Apply the complete value when editing ends.
+                LabeledContent("Port") {
+                    TextField("Port", value: $portDraft, format: .number.grouping(.never))
+                        .labelsHidden()
+                        .textFieldStyle(.roundedBorder)
+                        .multilineTextAlignment(.trailing)
+                        .monospacedDigit()
+                        .frame(width: 80)
+                        .focused($isPortFieldFocused)
+                        .onSubmit(commitPort)
+                        .disabled(settings.torrentVPNEnabled)
+                }
+            }
+            if settings.torrentVPNEnabled {
+                Text("Private VPN does not support incoming connections.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else if settings.torrentIncomingPortMode == .manual {
+                Text("Forward this TCP and UDP port on your router or VPN.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .onAppear { portDraft = settings.torrentIncomingPort }
+        .onChange(of: isPortFieldFocused) { _, isFocused in
+            if isFocused == false {
+                commitPort()
+            }
+        }
+    }
+
+    private func commitPort() {
+        let port = AppSettingsStore.clampedIncomingPort(portDraft)
+        portDraft = port
+        if settings.torrentIncomingPort != port {
+            settings.torrentIncomingPort = port
         }
     }
 }

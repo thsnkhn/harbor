@@ -101,6 +101,7 @@ final class DownloadCenter {
     @ObservationIgnored private let torrentSidecarFileService: TorrentSidecarFileService
     @ObservationIgnored private let torrentWatchFolderService: TorrentWatchFolderService
     @ObservationIgnored private let networkBindingMonitor: NetworkBindingMonitor
+    @ObservationIgnored private var listenPortTask: Task<Void, Never>?
     @ObservationIgnored private let directPauseOperation: DirectPauseOperation
     @ObservationIgnored private let mediaCleanupOperation: MediaCleanupOperation
     @ObservationIgnored private let mediaPauseOperation: MediaPauseOperation
@@ -353,6 +354,9 @@ final class DownloadCenter {
         self.networkBindingMonitor.statusDidChange = { [weak self] status in
             self?.handleNetworkBindingStatus(status)
         }
+        settings.incomingPortSettingsDidChange = { [weak self] in
+            self?.configureIncomingPort()
+        }
         settings.torrentVPN.routeDidChange = { [weak self] route in
             self?.applyVPNRoute(route)
         }
@@ -361,6 +365,7 @@ final class DownloadCenter {
     }
 
     deinit {
+        listenPortTask?.cancel()
         persistTask?.cancel()
         torrentRefreshTask?.cancel()
         directPreflightTasks.values.forEach { $0.cancel() }
@@ -415,6 +420,8 @@ final class DownloadCenter {
             // know its interface by then, or a restored torrent would briefly
             // transfer over whatever route the system happens to prefer.
             await applyNetworkBindingBeforeEngineUse()
+            configureIncomingPort()
+            await listenPortTask?.value
             await torrentService.setVPNRoute(settings.torrentVPN.route)
 
             do {
@@ -2059,6 +2066,32 @@ final class DownloadCenter {
         }
     }
 
+    private func configureIncomingPort() {
+        guard isShuttingDown == false else { return }
+        applyListenPort(settings.torrentIncomingPortMode == .manual ? settings.torrentIncomingPort : nil)
+    }
+
+    /// Chained so quick setting changes reach the engine in order.
+    private func applyListenPort(_ port: Int?) {
+        let previousTask = listenPortTask
+        listenPortTask = Task { @MainActor [weak self] in
+            await previousTask?.value
+            guard let self, !isShuttingDown, !Task.isCancelled else { return }
+            let requestedPort = settings.torrentIncomingPortMode == .manual
+                ? settings.torrentIncomingPort : nil
+            guard requestedPort == port else { return }
+            do {
+                try await torrentService.setListenPort(port)
+            } catch {
+                guard !isShuttingDown else { return }
+                activeAlert = UserAlert(
+                    title: "Couldn’t Change Incoming Port",
+                    message: error.localizedDescription
+                )
+            }
+        }
+    }
+
     private func applyVPNRoute(_ route: TorrentVPNRoute) {
         let previous = vpnRouteTask
         vpnRouteTask = Task { @MainActor [weak self] in
@@ -2235,6 +2268,7 @@ final class DownloadCenter {
     @discardableResult
     func shutdownForTermination() async -> Bool {
         isShuttingDown = true
+        await listenPortTask?.value
         sleepPreventionService.stop()
         await waitForInitializationToFinish()
         guard initializationState == .loaded else {

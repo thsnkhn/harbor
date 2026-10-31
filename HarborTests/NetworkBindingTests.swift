@@ -242,6 +242,24 @@ final class NetworkBindingTests: XCTestCase {
         }
     }
 
+    func testDaemonArgumentsUseTheIncomingPortForPeersAndDHT() {
+        func portArguments(_ listenPort: Int?) -> [String] {
+            Aria2TorrentService.daemonArguments(
+                sessionFilePath: "/tmp/aria2.session",
+                stateDirectoryPath: "/tmp/aria2-next-state",
+                rpcPort: 18_000,
+                rpcSecret: "secret",
+                hostProcessIdentifier: 42,
+                transferSettings: .default,
+                networkBinding: .unrestricted,
+                listenPort: listenPort
+            ).filter { $0.contains("listen-port=") && $0.hasPrefix("--rpc") == false }
+        }
+
+        XCTAssertEqual(portArguments(49_152), ["--listen-port=49152"])
+        XCTAssertEqual(portArguments(nil), [])
+    }
+
     func testDaemonArgumentsBindTheInterfaceOnlyWhileBound() {
         func arguments(for networkBinding: NetworkBindingStatus) -> [String] {
             Aria2TorrentService.daemonArguments(

@@ -79,6 +79,13 @@ struct DownloadTransferSettings: Equatable, Sendable {
     var allowsTorrentUploads: Bool = true
 }
 
+/// Which port incoming torrent peers reach Harbor on.
+nonisolated enum TorrentIncomingPortMode: String, CaseIterable, Sendable {
+    /// Use the bundled engine's default port (6881).
+    case off
+    case manual
+}
+
 @Observable
 @MainActor
 final class AppSettingsStore {
@@ -113,6 +120,8 @@ final class AppSettingsStore {
         static let perDownloadConnectionCount = "perDownloadConnectionCount"
         static let networkBindingSelection = "torrentNetworkBindingSelection"
         static let networkBindingDisplayName = "torrentNetworkBindingDisplayName"
+        static let torrentIncomingPortMode = "torrentIncomingPortMode"
+        static let torrentIncomingPort = "torrentIncomingPort"
         static let downloadStagingPath = "downloadStagingPath"
         static let customDownloadStagingEnabled = "customDownloadStagingEnabled"
         static let proxyMode = "networkProxyMode"
@@ -127,6 +136,7 @@ final class AppSettingsStore {
     static let perDownloadConnectionCountRange = 1 ... 16
     static let speedLimitKilobytesRange = 1 ... 1_048_576
     static let seedingRatioRange = 0.1 ... 100.0
+    static let incomingPortRange = 1_024 ... 65_535
 
     private let userDefaults: UserDefaults
     var appearance: AppAppearance {
@@ -147,6 +157,7 @@ final class AppSettingsStore {
     @ObservationIgnored var transferSettingsDidChange: ((DownloadTransferSettings) -> Void)?
     @ObservationIgnored var torrentAutomationSettingsDidChange: (() -> Void)?
     @ObservationIgnored var networkBindingDidChange: ((NetworkBindingSelection) -> Void)?
+    @ObservationIgnored var incomingPortSettingsDidChange: (() -> Void)?
     @ObservationIgnored var proxySettingsDidChange: ((NetworkProxySettings) -> Void)?
     @ObservationIgnored var torrentBlocklistSettingsDidChange: (() -> Void)?
     @ObservationIgnored var torrentBlocklistRefreshRequested: (() -> Void)?
@@ -246,6 +257,22 @@ final class AppSettingsStore {
             )
             rememberNetworkBindingDisplayName()
             networkBindingDidChange?(networkBindingSelection)
+        }
+    }
+
+    var torrentIncomingPortMode: TorrentIncomingPortMode {
+        didSet {
+            guard oldValue != torrentIncomingPortMode else { return }
+            userDefaults.set(torrentIncomingPortMode.rawValue, forKey: Keys.torrentIncomingPortMode)
+            incomingPortSettingsDidChange?()
+        }
+    }
+
+    var torrentIncomingPort: Int {
+        didSet {
+            guard oldValue != torrentIncomingPort else { return }
+            userDefaults.set(torrentIncomingPort, forKey: Keys.torrentIncomingPort)
+            incomingPortSettingsDidChange?()
         }
     }
 
@@ -559,6 +586,12 @@ final class AppSettingsStore {
             .string(forKey: Keys.networkBindingDisplayName)
             ?? Self.fallbackDisplayName(for: storedSelection)
 
+        self.torrentIncomingPortMode = userDefaults.string(forKey: Keys.torrentIncomingPortMode)
+            .flatMap(TorrentIncomingPortMode.init(rawValue:))
+            ?? .off
+        let storedIncomingPort = userDefaults.integer(forKey: Keys.torrentIncomingPort)
+        self.torrentIncomingPort = Self.clampedIncomingPort(storedIncomingPort == 0 ? 6_881 : storedIncomingPort)
+
         self.proxyMode = userDefaults.string(forKey: Keys.proxyMode)
             .flatMap(NetworkProxyMode.init(rawValue:))
             ?? .system
@@ -669,6 +702,10 @@ final class AppSettingsStore {
 
     static func clampedSpeedLimitKilobytes(_ value: Int) -> Int {
         clamped(value, to: speedLimitKilobytesRange)
+    }
+
+    static func clampedIncomingPort(_ value: Int) -> Int {
+        clamped(value, to: incomingPortRange)
     }
 
     static func clampedSeedingRatio(_ value: Double) -> Double {

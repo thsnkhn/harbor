@@ -303,6 +303,7 @@ actor Aria2TorrentService {
     private var vpnRoute: TorrentVPNRoute = .disabled
     private var peerBlocklistRules: [String] = []
     private var networkBinding: NetworkBindingStatus = .unrestricted
+    private var listenPort: Int?
     private var isRetryingAfterSessionRecovery = false
     private var peerDiscoveryMonitor: Task<Void, Never>?
     private var peerDiscoveryUpdate: EngineOperationState?
@@ -358,6 +359,22 @@ actor Aria2TorrentService {
         // interface is gone, keeps every torrent recoverable.
         try? await saveSession()
         resetDaemon(terminateIfRunning: true)
+    }
+
+    /// Aria2 Next updates its TCP and UDP listeners without restarting transfers.
+    func setListenPort(_ listenPort: Int?) async throws {
+        self.listenPort = listenPort
+        if let daemonStartupState {
+            try await awaitDaemonStartup(daemonStartupState)
+        }
+        guard isDaemonReady, process?.isRunning == true,
+              rpcPort != nil, rpcSecret != nil else { return }
+
+        _ = try await rpcCall(
+            method: "aria2.changeGlobalOption",
+            params: [authorizedToken(), ["listen-port": String(listenPort ?? 6_881)]],
+            as: String.self
+        )
     }
 
     func updateTransferSettings(
@@ -1320,6 +1337,7 @@ actor Aria2TorrentService {
                 displayName: "Private VPN",
                 binding: ResolvedNetworkBinding(interfaceName: "lo0", ipv4Address: "127.0.0.1")
             ),
+            listenPort: listenPort,
             proxyURI: proxyURI
         )
 
@@ -1416,6 +1434,7 @@ actor Aria2TorrentService {
         hostProcessIdentifier: pid_t,
         transferSettings: DownloadTransferSettings,
         networkBinding: NetworkBindingStatus,
+        listenPort: Int? = nil,
         proxyURI: String? = nil
     ) -> [String] {
         var arguments = [
@@ -1459,6 +1478,10 @@ actor Aria2TorrentService {
         // covers every BitTorrent socket without affecting direct downloads.
         if case let .bound(_, binding) = networkBinding {
             arguments.append("--bt-interface=\(binding.interfaceName)")
+        }
+        // Aria2 Next uses this port for both TCP and UDP listeners.
+        if let listenPort {
+            arguments.append("--listen-port=\(listenPort)")
         }
         if let proxyURI {
             arguments.append("--bt-proxy=\(proxyURI)")

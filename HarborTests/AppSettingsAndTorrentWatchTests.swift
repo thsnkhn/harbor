@@ -23,6 +23,21 @@ final class AppSettingsAndTorrentWatchTests: XCTestCase {
         XCTAssertTrue(restored.torrentVPNEnabled)
     }
 
+    func testIncomingPortDefaultsOffAndClampsStoredPort() {
+        let suiteName = "HarborTests.IncomingPort.\(UUID())"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let settings = AppSettingsStore(userDefaults: defaults)
+        XCTAssertEqual(settings.torrentIncomingPortMode, .off)
+        XCTAssertEqual(settings.torrentIncomingPort, 6_881)
+
+        settings.torrentIncomingPortMode = .manual
+        defaults.set(80, forKey: "torrentIncomingPort")
+        let restored = AppSettingsStore(userDefaults: defaults)
+        XCTAssertEqual(restored.torrentIncomingPortMode, .manual)
+        XCTAssertEqual(restored.torrentIncomingPort, 1_024)
+    }
+
     func testCustomStagingDefaultsOffAndCanBeRestored() {
         let suiteName = "HarborTests.DownloadStaging.\(UUID().uuidString)"
         let userDefaults = UserDefaults(suiteName: suiteName)!
