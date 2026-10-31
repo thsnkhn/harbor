@@ -31,10 +31,10 @@ final class AppSettingsAndTorrentWatchTests: XCTestCase {
         XCTAssertEqual(settings.torrentIncomingPortMode, .off)
         XCTAssertEqual(settings.torrentIncomingPort, 6_881)
 
-        settings.torrentIncomingPortMode = .automatic
+        settings.torrentIncomingPortMode = .manual
         defaults.set(80, forKey: "torrentIncomingPort")
         let restored = AppSettingsStore(userDefaults: defaults)
-        XCTAssertEqual(restored.torrentIncomingPortMode, .automatic)
+        XCTAssertEqual(restored.torrentIncomingPortMode, .manual)
         XCTAssertEqual(restored.torrentIncomingPort, 1_024)
     }
 

@@ -81,11 +81,9 @@ struct DownloadTransferSettings: Equatable, Sendable {
 
 /// Which port incoming torrent peers reach Harbor on.
 nonisolated enum TorrentIncomingPortMode: String, CaseIterable, Sendable {
-    /// aria2 picks from its default range.
+    /// Use the bundled engine's default port (6881).
     case off
     case manual
-    /// The VPN gateway assigns the port over NAT-PMP.
-    case automatic
 }
 
 @Observable
@@ -264,6 +262,7 @@ final class AppSettingsStore {
 
     var torrentIncomingPortMode: TorrentIncomingPortMode {
         didSet {
+            guard oldValue != torrentIncomingPortMode else { return }
             userDefaults.set(torrentIncomingPortMode.rawValue, forKey: Keys.torrentIncomingPortMode)
             incomingPortSettingsDidChange?()
         }
@@ -271,12 +270,11 @@ final class AppSettingsStore {
 
     var torrentIncomingPort: Int {
         didSet {
+            guard oldValue != torrentIncomingPort else { return }
             userDefaults.set(torrentIncomingPort, forKey: Keys.torrentIncomingPort)
             incomingPortSettingsDidChange?()
         }
     }
-
-    private(set) var incomingPortStatus = IncomingPortStatus.waiting
 
     private(set) var availableNetworkBindingTargets: [NetworkBindingTarget] = [.any]
     private(set) var networkBindingStatus: NetworkBindingStatus = .unrestricted
@@ -793,10 +791,6 @@ final class AppSettingsStore {
 
     func updateNetworkBindingStatus(_ status: NetworkBindingStatus) {
         networkBindingStatus = status
-    }
-
-    func updateIncomingPortStatus(_ status: IncomingPortStatus) {
-        incomingPortStatus = status
     }
 
     func requestTorrentBlocklistRefresh() {

@@ -39,8 +39,9 @@ extension HarborModelAndSafetyTests {
         }
     }
 
-    func testDiscoveryRemainsOnForSeederUntilLastTorrentStops() async throws {
+    func testIncomingPortChangesPreserveSeederPausedTransferAndDiscovery() async throws {
         try await withPeerDiscoveryFixture { service, root in
+            try await service.setListenPort(49_152)
             let payload = Data(repeating: 120, count: 16_384)
             let payloadURL = root.appendingPathComponent("fixture.bin")
             try payload.write(to: payloadURL)
@@ -78,6 +79,25 @@ extension HarborModelAndSafetyTests {
             try await service.pause(gid: otherGID)
             try await Task.sleep(for: .milliseconds(1_200))
             try await assertPeerDiscovery(true, service: service)
+            let ownerURL = root.appendingPathComponent("Harbor/aria2.daemon-owner.json")
+            let originalOwner = try Data(contentsOf: ownerURL)
+            for port: Int? in [49_153, nil] {
+                try await service.setListenPort(port)
+                let seeder = try await service.status(for: seedGID)
+                let paused = try await service.status(for: otherGID)
+                XCTAssertTrue(seeder.isSeeder)
+                XCTAssertEqual(seeder.status, "active")
+                XCTAssertEqual(paused.status, "paused")
+                XCTAssertEqual(try Data(contentsOf: ownerURL), originalOwner,
+                               "Changing the port must keep the same engine process and RPC connection")
+                try await assertPeerDiscovery(true, service: service)
+            }
+            try await service.unpause(gid: otherGID)
+            try await service.setListenPort(49_152)
+            let resumed = try await service.status(for: otherGID)
+            XCTAssertEqual(resumed.status, "active")
+            XCTAssertEqual(try Data(contentsOf: ownerURL), originalOwner)
+            try await service.pause(gid: otherGID)
             try await service.removeAndConfirmStopped(gid: seedGID)
             try await assertPeerDiscovery(false, service: service)
             XCTAssertEqual(try Data(contentsOf: payloadURL), payload)

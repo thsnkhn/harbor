@@ -512,20 +512,17 @@ private struct IncomingPortSection: View {
 
         Section("Incoming Port") {
             Picker("Incoming Port", selection: $settings.torrentIncomingPortMode) {
-                Text("Default").tag(TorrentIncomingPortMode.off)
+                Text("Default (6881)").tag(TorrentIncomingPortMode.off)
                 Text("Manual").tag(TorrentIncomingPortMode.manual)
-                Text("Automatic (NAT-PMP)").tag(TorrentIncomingPortMode.automatic)
             }
             .accessibilityIdentifier(HarborAccessibility.settingsIncomingPortPicker)
+            .disabled(settings.torrentVPNEnabled)
 
             switch settings.torrentIncomingPortMode {
             case .off:
-                Text("aria2 picks a port between 6881 and 6999.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                EmptyView()
             case .manual:
-                // Commits only when editing ends: every committed port
-                // restarts the torrent engine.
+                // Apply the complete value when editing ends.
                 LabeledContent("Port") {
                     TextField("Port", value: $portDraft, format: .number.grouping(.never))
                         .labelsHidden()
@@ -535,18 +532,15 @@ private struct IncomingPortSection: View {
                         .frame(width: 80)
                         .focused($isPortFieldFocused)
                         .onSubmit(commitPort)
+                        .disabled(settings.torrentVPNEnabled)
                 }
-                Text("Forward this port for TCP and UDP on your router. Changing it restarts the torrent engine.")
+            }
+            if settings.torrentVPNEnabled {
+                Text("Private VPN does not support incoming connections.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-            case .automatic:
-                if settings.networkBindingSelection == .any {
-                    Label("Select your VPN as the network interface above.", systemImage: "exclamationmark.triangle")
-                        .foregroundStyle(.orange)
-                } else {
-                    IncomingPortStatusRow(status: settings.incomingPortStatus)
-                }
-                Text("Requests the forwarded port from your VPN and renews it while Harbor runs. For ProtonVPN, connect to a P2P server with port forwarding turned on. A new port restarts the torrent engine.")
+            } else if settings.torrentIncomingPortMode == .manual {
+                Text("Forward this TCP and UDP port on your router or VPN.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -564,29 +558,6 @@ private struct IncomingPortSection: View {
         portDraft = port
         if settings.torrentIncomingPort != port {
             settings.torrentIncomingPort = port
-        }
-    }
-}
-
-private struct IncomingPortStatusRow: View {
-    let status: IncomingPortStatus
-
-    var body: some View {
-        LabeledContent("Status") {
-            switch status {
-            case .waiting:
-                Label("Waiting for the VPN", systemImage: "circle")
-                    .foregroundStyle(.secondary)
-            case let .mapped(port):
-                Label(
-                    String(format: String(localized: "Forwarded port %@"), String(port)),
-                    systemImage: "checkmark.shield"
-                )
-                .foregroundStyle(.green)
-            case .failed:
-                Label("The VPN did not assign a port", systemImage: "exclamationmark.triangle")
-                    .foregroundStyle(.orange)
-            }
         }
     }
 }

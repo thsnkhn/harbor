@@ -361,20 +361,20 @@ actor Aria2TorrentService {
         resetDaemon(terminateIfRunning: true)
     }
 
-    /// aria2 fixes its listening ports at launch and cannot change them over
-    /// RPC, so a new port restarts the daemon.
-    func setListenPort(_ listenPort: Int?) async {
-        guard self.listenPort != listenPort else {
-            return
-        }
+    /// Aria2 Next updates its TCP and UDP listeners without restarting transfers.
+    func setListenPort(_ listenPort: Int?) async throws {
         self.listenPort = listenPort
-
-        guard let process, process.isRunning else {
-            return
+        if let daemonStartupState {
+            try await awaitDaemonStartup(daemonStartupState)
         }
+        guard isDaemonReady, process?.isRunning == true,
+              rpcPort != nil, rpcSecret != nil else { return }
 
-        try? await saveSession()
-        resetDaemon(terminateIfRunning: true)
+        _ = try await rpcCall(
+            method: "aria2.changeGlobalOption",
+            params: [authorizedToken(), ["listen-port": String(listenPort ?? 6_881)]],
+            as: String.self
+        )
     }
 
     func updateTransferSettings(
@@ -1479,11 +1479,9 @@ actor Aria2TorrentService {
         if case let .bound(_, binding) = networkBinding {
             arguments.append("--bt-interface=\(binding.interfaceName)")
         }
-        // A forwarded port is open for TCP and UDP, so peers and DHT share it.
-        // aria2 also sends UDP tracker requests from the DHT socket.
+        // Aria2 Next uses this port for both TCP and UDP listeners.
         if let listenPort {
             arguments.append("--listen-port=\(listenPort)")
-            arguments.append("--dht-listen-port=\(listenPort)")
         }
         if let proxyURI {
             arguments.append("--bt-proxy=\(proxyURI)")
