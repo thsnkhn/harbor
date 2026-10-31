@@ -66,6 +66,21 @@ if [ ! -d "$APP_PATH" ]; then
   exit 1
 fi
 
+if [ -n "$SIGNING_IDENTITY" ]; then
+  SPARKLE_DIR="$APP_PATH/Contents/Frameworks/Sparkle.framework/Versions/B"
+  for nested in \
+    "$SPARKLE_DIR/Autoupdate" \
+    "$SPARKLE_DIR/Updater.app" \
+    "$SPARKLE_DIR/XPCServices/Downloader.xpc" \
+    "$SPARKLE_DIR/XPCServices/Installer.xpc" \
+    "$SPARKLE_DIR" \
+    "$APP_PATH/Contents/PlugIns/HarborSafariExtension.appex" \
+    "$APP_PATH"; do
+    /usr/bin/codesign --force --sign "$SIGNING_IDENTITY" --options runtime \
+      --timestamp --preserve-metadata=entitlements "$nested"
+  done
+fi
+
 if [ "$(lipo -archs "$APP_PATH/Contents/MacOS/Harbor")" != "$BUILD_ARCH" ] ||
    [ "$(lipo -archs "$APP_PATH/Contents/PlugIns/HarborSafariExtension.appex/Contents/MacOS/HarborSafariExtension")" != "$BUILD_ARCH" ]; then
   echo "The app or Safari extension contains the wrong processor build." >&2

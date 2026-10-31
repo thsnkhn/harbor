@@ -173,8 +173,15 @@ def verify_dmg(path, architecture, build, project):
             run("hdiutil", "detach", mount)
 
 
+def submit_notarization(path, profile):
+    result = json.loads(run("xcrun", "notarytool", "submit", path, "--keychain-profile", profile,
+                            "--wait", "--output-format", "json", capture=True))
+    if result.get("status") != "Accepted":
+        raise RuntimeError(f"Apple rejected notarization for {Path(path).name}: {result.get('status')} (submission {result.get('id')}).")
+
+
 def notarize(path, profile):
-    run("xcrun", "notarytool", "submit", path, "--keychain-profile", profile, "--wait")
+    submit_notarization(path, profile)
     run("xcrun", "stapler", "staple", path)
     run("xcrun", "stapler", "validate", path)
 
@@ -209,7 +216,7 @@ def prepare(args):
             with tempfile.TemporaryDirectory(prefix="harbor-notary-") as temporary:
                 archive = Path(temporary) / "Harbor.zip"
                 run("ditto", "-c", "-k", "--keepParent", APP, archive)
-                run("xcrun", "notarytool", "submit", archive, "--keychain-profile", args.notary_profile, "--wait")
+                submit_notarization(archive, args.notary_profile)
                 run("xcrun", "stapler", "staple", APP)
                 # Repackage the stapled app without building or retaining a second app.
                 with tempfile.TemporaryDirectory(prefix="harbor-dmg-") as temporary:
