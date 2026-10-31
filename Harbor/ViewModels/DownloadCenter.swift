@@ -93,6 +93,8 @@ final class DownloadCenter {
     typealias RecordSaveOperation = DownloadRecordStore.SaveOperation
 
     @ObservationIgnored private let settings: AppSettingsStore
+    @ObservationIgnored private let storageLocations: DownloadStorageLocations?
+    @ObservationIgnored private let legacyStorageDirectories: [String: URL]
     @ObservationIgnored private let recordStore: DownloadRecordStore
     @ObservationIgnored private let destinationResolver: DownloadDestinationResolver
     @ObservationIgnored private let notificationService: DownloadNotificationService
@@ -126,6 +128,10 @@ final class DownloadCenter {
     @ObservationIgnored private var torrentSelectionUpdates: Set<UUID> = []
     @ObservationIgnored private var persistTask: Task<Void, Never>?
     @ObservationIgnored private var torrentRefreshTask: Task<Void, Never>?
+    @ObservationIgnored private var progressDisplayTask: Task<Void, Never>?
+    @ObservationIgnored private let pendingProgress = PendingDownloadProgress()
+    @ObservationIgnored private let progressClockOrigin = ContinuousClock.now
+    @ObservationIgnored private var transferStatistics: [UUID: DownloadTransferStatistics] = [:]
     @ObservationIgnored private var hasShownTorrentBinaryAlert = false
     @ObservationIgnored private var hasShownMediaRuntimeAlert = false
     @ObservationIgnored private var hasShownWatchFolderUnavailableAlert = false
@@ -215,6 +221,7 @@ final class DownloadCenter {
         directRecoveryDirectoryURL: URL? = nil,
         completedHandoffDirectoryURL: URL? = nil,
         browserRecoveryDirectoryURL: URL? = nil,
+        storageLocations: DownloadStorageLocations? = nil,
         destinationResolver: DownloadDestinationResolver = DownloadDestinationResolver(),
         notificationService: DownloadNotificationService = DownloadNotificationService(),
         dataRemovalService: DownloadDataRemovalService = DownloadDataRemovalService(),
@@ -273,9 +280,18 @@ final class DownloadCenter {
         }
     ) {
         let completedHandoffStore = CompletedDownloadHandoffStore(
-            directoryURL: completedHandoffDirectoryURL
+            directoryURL: completedHandoffDirectoryURL,
+            storageLocations: storageLocations
         )
         self.settings = settings
+        self.storageLocations = storageLocations
+        let supportDirectory = HarborApplicationSupport.directoryURL()
+        self.legacyStorageDirectories = [
+            "DirectDownloadRecovery": directRecoveryDirectoryURL ?? supportDirectory.appendingPathComponent("DirectDownloadRecovery"),
+            "CompletedDownloadHandoffs": completedHandoffDirectoryURL ?? supportDirectory.appendingPathComponent("CompletedDownloadHandoffs"),
+            "BrowserDownloadRecovery": browserRecoveryDirectoryURL ?? supportDirectory.appendingPathComponent("BrowserDownloadRecovery"),
+            "MediaDownloads": supportDirectory.appendingPathComponent("MediaDownloads")
+        ]
         self.recordStore = DownloadRecordStore(
             persistence: persistence,
             saveOperation: recordSaveOperation
@@ -314,25 +330,39 @@ final class DownloadCenter {
         self.urlSessionCleanupOperation = urlSessionCleanupOperation
         self.remoteByteCountOperation = remoteByteCountOperation
         self.completedHandoffStore = completedHandoffStore
-        self.mediaService = mediaService ?? MediaDownloadService { [weak self] attemptIdentifier, event in
-            Task { @MainActor [weak self] in
-                self?.handle(event, attemptIdentifier: attemptIdentifier)
-            }
-        }
+        let pendingProgress = self.pendingProgress
+        self.mediaService = mediaService ?? MediaDownloadService(
+            eventHandler: { [weak self] attemptIdentifier, event in
+                if case .progress = event {
+                    pendingProgress.store(event, attempt: attemptIdentifier)
+                    return
+                }
+                Task { @MainActor [weak self] in
+                    self?.handle(event, attemptIdentifier: attemptIdentifier)
+                }
+            },
+            storageLocations: storageLocations
+        )
         self.coordinator = DownloadCoordinator(
             transferSettings: settings.transferSettings,
             eventHandler: { [weak self] event in
+                if case let .progress(_, attempt, _, _, _) = event {
+                    pendingProgress.store(event, attempt: attempt)
+                    return
+                }
                 Task { @MainActor [weak self] in
                     self?.handle(event)
                 }
             },
             recoveryDirectoryURL: directRecoveryDirectoryURL,
             completedHandoffStore: completedHandoffStore,
+            storageLocations: storageLocations,
             proxySettings: settings.proxySettings
         )
         self.browserCoordinator = BrowserDownloadCoordinator(
             temporaryDirectory: browserRecoveryDirectoryURL,
-            completedHandoffStore: completedHandoffStore
+            completedHandoffStore: completedHandoffStore,
+            storageLocations: storageLocations
         ) { [weak self] event in
             self?.handleBrowserDownloadEvent(event)
         }
@@ -362,11 +392,18 @@ final class DownloadCenter {
         }
         settings.torrentVPN.setEnabled(settings.torrentVPNEnabled)
         monitorSleepPrevention()
+        progressDisplayTask = Task { [weak self] in
+            while Task.isCancelled == false {
+                do { try await Task.sleep(for: .seconds(1)) } catch { return }
+                self?.refreshProgressDisplay()
+            }
+        }
     }
 
     deinit {
         listenPortTask?.cancel()
         persistTask?.cancel()
+        progressDisplayTask?.cancel()
         torrentRefreshTask?.cancel()
         directPreflightTasks.values.forEach { $0.cancel() }
         directRetryTasks.values.forEach { $0.cancel() }
@@ -416,6 +453,7 @@ final class DownloadCenter {
         var orphanCleanupWarning: String?
 
         do {
+            try storageLocations?.checkReadable()
             // Session recovery below talks to aria2. The engine must already
             // know its interface by then, or a restored torrent would briefly
             // transfer over whatever route the system happens to prefer.
@@ -433,6 +471,7 @@ final class DownloadCenter {
                 orphanCleanupWarning = error.localizedDescription
             }
             let records = try await recordStore.load()
+            try storageLocations?.preserveLegacyLocations(for: records.map(\.id), directories: legacyStorageDirectories)
             let restoredItems = records
                 .sorted { $0.createdAt > $1.createdAt }
                 .map { record in
@@ -2268,6 +2307,7 @@ final class DownloadCenter {
     @discardableResult
     func shutdownForTermination() async -> Bool {
         isShuttingDown = true
+        progressDisplayTask?.cancel()
         await listenPortTask?.value
         sleepPreventionService.stop()
         await waitForInitializationToFinish()
@@ -4718,6 +4758,7 @@ final class DownloadCenter {
             return
         }
 
+        guard prepareStorage(for: item) else { return }
         let attemptIdentifier = UUID()
         pendingBrowserContinuationIDs.insert(id)
         browserReservedIDs.insert(id)
@@ -4792,6 +4833,24 @@ final class DownloadCenter {
             self.startNextQueuedDownloadsIfNeeded()
         }
         browserCancellationTasks[id] = task
+    }
+
+    private func prepareStorage(for item: DownloadItem) -> Bool {
+        do {
+            try storageLocations?.prepare(
+                id: item.id,
+                destination: URL(fileURLWithPath: item.destinationFolderPath, isDirectory: true),
+                customRoot: settings.usesCustomDownloadStaging ? settings.downloadStagingRootURL : nil
+            )
+            return true
+        } catch {
+            item.lastError = error.localizedDescription
+            item.speedBytesPerSecond = 0
+            item.updatedAt = .now
+            setStatus(for: item, to: .failed)
+            schedulePersist()
+            return false
+        }
     }
 
     private func startOrQueueDownload(id: UUID) {
@@ -5081,6 +5140,7 @@ final class DownloadCenter {
               directPreflightTasks[item.id] == nil else {
             return
         }
+        guard prepareStorage(for: item) else { return }
         if !didResolveMediaFire, MediaFireSourceResolver.isFileURL(item.sourceURL) {
             let id = item.id
             let sourceURL = item.sourceURL
@@ -5507,6 +5567,8 @@ final class DownloadCenter {
               currentItem.status == .preparing else {
             return
         }
+
+        guard prepareStorage(for: currentItem) else { return }
 
         do {
             var validatedMetadata: MediaDownloadMetadata
@@ -5949,7 +6011,7 @@ final class DownloadCenter {
             item.progress = snapshot.totalLength > 0
                 ? min(Double(snapshot.completedLength) / Double(snapshot.totalLength), 1)
                 : item.progress
-            item.speedBytesPerSecond = snapshot.downloadSpeed
+            recordTransferRate(snapshot.downloadSpeed, for: item)
             item.uploadBytesPerSecond = snapshot.uploadSpeed
         }
         item.lastError = error.localizedDescription
@@ -6545,6 +6607,35 @@ final class DownloadCenter {
         return limits.min()
     }
 
+    private var progressTime: TimeInterval {
+        let elapsed = progressClockOrigin.duration(to: .now).components
+        return Double(elapsed.seconds) + Double(elapsed.attoseconds) / 1e18
+    }
+
+    private func recordTransferRate(_ rate: Double, for item: DownloadItem) {
+        let now = progressTime
+        if transferStatistics[item.id] == nil {
+            transferStatistics[item.id] = DownloadTransferStatistics(rate: rate, at: now)
+        } else {
+            transferStatistics[item.id]?.record(rate: rate, at: now)
+        }
+    }
+
+    private func refreshProgressDisplay() {
+        guard isShuttingDown == false else { return }
+        let (direct, media) = pendingProgress.drain()
+        for event in direct { handle(event) }
+        for (attempt, event) in media { handle(event, attemptIdentifier: attempt) }
+        let now = progressTime
+        for id in Array(transferStatistics.keys) {
+            guard let item = item(for: id), item.status == .downloading else {
+                transferStatistics.removeValue(forKey: id)
+                continue
+            }
+            item.speedBytesPerSecond = transferStatistics[id]?.displaySpeed(at: now) ?? 0
+        }
+    }
+
     private func startTorrentRefreshLoopIfNeeded() {
         guard initializationState == .loaded,
               isShuttingDown == false,
@@ -6740,7 +6831,7 @@ final class DownloadCenter {
         let snapshot = lineage.currentSnapshot
 
         if Self.shouldAwaitMagnetPayload(sourceKind: item.sourceKind, lineage: lineage) {
-            item.speedBytesPerSecond = snapshot.downloadSpeed
+            recordTransferRate(snapshot.downloadSpeed, for: item)
             item.uploadBytesPerSecond = snapshot.uploadSpeed
             item.metadataName = snapshot.metadataName ?? item.metadataName
             if let infoHash = ManagedTorrentSourceStore.normalizedInfoHash(snapshot.infoHash) {
@@ -6818,7 +6909,7 @@ final class DownloadCenter {
         if snapshot.totalLength > 0 {
             item.progress = Double(snapshot.completedLength) / Double(snapshot.totalLength)
         }
-        item.speedBytesPerSecond = snapshot.downloadSpeed
+        recordTransferRate(snapshot.downloadSpeed, for: item)
         item.uploadBytesPerSecond = snapshot.uploadSpeed
         item.metadataName = snapshot.metadataName ?? item.metadataName
         if let infoHash = ManagedTorrentSourceStore.normalizedInfoHash(snapshot.infoHash) {
@@ -7089,6 +7180,7 @@ final class DownloadCenter {
                 return
             }
 
+            transferStatistics.removeValue(forKey: id)
             item.taskIdentifier = taskIdentifier
             setStatus(for: item, to: .downloading)
             item.bytesWritten = ownedRecovery?.bytesWritten ?? 0
@@ -7116,6 +7208,8 @@ final class DownloadCenter {
                 return
             }
 
+            transferStatistics.removeValue(forKey: id)
+            item.speedBytesPerSecond = 0
             item.bytesWritten = 0
             item.expectedBytes = 0
             item.progress = 0
@@ -7144,7 +7238,7 @@ final class DownloadCenter {
                     1
                 )
             }
-            item.speedBytesPerSecond = speedBytesPerSecond
+            recordTransferRate(speedBytesPerSecond, for: item)
             item.uploadBytesPerSecond = 0
             item.updatedAt = .now
 
@@ -7675,6 +7769,7 @@ final class DownloadCenter {
             return
         }
 
+        transferStatistics.removeValue(forKey: id)
         pendingBrowserWriterMutations.removeValue(forKey: id)
         directAttemptStates[id] = .terminal(attemptIdentifier)
         coordinator.acknowledgeTerminalOutcome(
@@ -7772,6 +7867,7 @@ final class DownloadCenter {
         }
 
         if mediaEventReleasesQueueSlot(event) {
+            transferStatistics.removeValue(forKey: id)
             activeMediaAttemptIdentifiers.removeValue(forKey: id)
         }
 
@@ -7788,6 +7884,7 @@ final class DownloadCenter {
                 return
             }
 
+            transferStatistics.removeValue(forKey: id)
             item.backendIdentifier = String(processIdentifier)
             item.metadataName = title ?? item.metadataName
             if expectedBytes > 0 {
@@ -7800,7 +7897,7 @@ final class DownloadCenter {
             item.updatedAt = .now
 
         case let .progress(id, bytesWritten, expectedBytes, speedBytesPerSecond):
-            guard let item = item(for: id) else {
+            guard let item = item(for: id), item.status == .downloading else {
                 return
             }
 
@@ -7809,7 +7906,7 @@ final class DownloadCenter {
             if item.expectedBytes > 0 {
                 item.progress = Double(item.bytesWritten) / Double(item.expectedBytes)
             }
-            item.speedBytesPerSecond = speedBytesPerSecond
+            recordTransferRate(speedBytesPerSecond, for: item)
             item.uploadBytesPerSecond = 0
             item.updatedAt = .now
 
@@ -8218,6 +8315,10 @@ final class DownloadCenter {
     ) {
         let previousStatus = item.status
         item.status = status
+        if previousStatus != status {
+            transferStatistics.removeValue(forKey: item.id)
+            item.speedBytesPerSecond = 0
+        }
 
         guard previousStatus != status,
               let activityKind = activityKind(from: previousStatus, to: status)

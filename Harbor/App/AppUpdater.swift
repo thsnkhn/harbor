@@ -3,12 +3,12 @@ import Foundation
 import Sparkle
 
 @MainActor
-final class AppUpdater: ObservableObject {
+final class AppUpdater: NSObject, ObservableObject, SPUUpdaterDelegate {
     @Published private(set) var automaticallyChecksForUpdates: Bool
     @Published private(set) var canCheckForUpdates: Bool
 
     private let currentBundle: Bundle
-    private let updaterController: SPUStandardUpdaterController?
+    private var updaterController: SPUStandardUpdaterController?
     private var didCheckForUpdatesOnLaunch = false
     private var observations: [NSKeyValueObservation] = []
 
@@ -18,17 +18,17 @@ final class AppUpdater: ObservableObject {
         startsUpdater: Bool = true
     ) {
         self.currentBundle = bundle
+        self.automaticallyChecksForUpdates = false
+        self.canCheckForUpdates = false
+        super.init()
 
         guard startsUpdater else {
-            self.updaterController = nil
-            self.automaticallyChecksForUpdates = false
-            self.canCheckForUpdates = false
             return
         }
 
         let controller = SPUStandardUpdaterController(
             startingUpdater: true,
-            updaterDelegate: nil,
+            updaterDelegate: self,
             userDriverDelegate: nil
         )
 
@@ -44,6 +44,12 @@ final class AppUpdater: ObservableObject {
 
     var currentVersionLabel: String {
         Self.versionLabel(bundle: currentBundle)
+    }
+
+    func feedURLString(for updater: SPUUpdater) -> String? {
+        guard let value = currentBundle.object(forInfoDictionaryKey: "SUFeedURL") as? String,
+              let legacyURL = URL(string: value) else { return nil }
+        return AppUpdateArchitecture.current.feedURL(relativeTo: legacyURL).absoluteString
     }
 
     func checkForUpdates() {

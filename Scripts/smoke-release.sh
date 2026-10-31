@@ -69,7 +69,11 @@ OPEN_WAIT_PID="$!"
 sleep "$WAIT_SECONDS"
 assert_harbor_alive
 
-MEDIA_ARCH="$(uname -m)"
+MEDIA_ARCH="$(lipo -archs "$APP_PATH/Contents/MacOS/Harbor")"
+case "$MEDIA_ARCH" in
+  arm64|x86_64) ;;
+  *) MEDIA_ARCH="$(uname -m)" ;; # A universal app uses this Mac's native tools.
+esac
 YTDLP_PATH="$APP_PATH/Contents/Resources/MediaRuntime/$MEDIA_ARCH/bin/yt-dlp"
 DENO_PATH="$APP_PATH/Contents/Resources/MediaRuntime/$MEDIA_ARCH/bin/deno"
 ARIA2_PATH="$APP_PATH/Contents/Resources/TorrentRuntime/$MEDIA_ARCH/bin/aria2-next"

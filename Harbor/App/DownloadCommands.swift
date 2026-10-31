@@ -7,6 +7,14 @@ struct DownloadCommands: Commands {
     @FocusedBinding(\.sidebarVisibility) private var sidebarVisibility
 
     var body: some Commands {
+        CommandGroup(replacing: .appInfo) {
+            Button("About Harbor") {
+                NSApplication.shared.orderFrontStandardAboutPanel(options: [
+                    .credits: HarborAcknowledgments.credits
+                ])
+            }
+        }
+
         CommandGroup(replacing: .sidebar) {
             Button(sidebarVisibility == .detailOnly ? "Show Sidebar" : "Hide Sidebar", systemImage: "sidebar.left") {
                 withAnimation {

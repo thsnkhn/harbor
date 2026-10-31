@@ -14,7 +14,8 @@ struct HarborApp: App {
             initialValue: DownloadCenter(
                 settings: settings,
                 directRecoveryDirectoryURL: settings.directDownloadRecoveryURL,
-                completedHandoffDirectoryURL: settings.completedHandoffStagingURL
+                completedHandoffDirectoryURL: settings.completedHandoffStagingURL,
+                storageLocations: DownloadStorageLocations()
             )
         )
         _updater = StateObject(wrappedValue: AppUpdater(
@@ -56,6 +57,7 @@ struct HarborApp: App {
                 .modifier(HarborAppearance(appearance: settings.appearance))
                 .defaultAppStorage(HarborTestRuntime.userDefaults)
         }
-        .windowResizability(.contentSize)
+        .defaultSize(width: 840, height: 720)
+        .windowResizability(.contentMinSize)
     }
 }

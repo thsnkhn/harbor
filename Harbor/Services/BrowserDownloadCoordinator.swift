@@ -148,6 +148,7 @@ final class BrowserDownloadCoordinator: NSObject {
 
     private let fileManager: FileManager
     private let temporaryDirectory: URL
+    private let storageLocations: DownloadStorageLocations?
     private let completedHandoffStore: CompletedDownloadHandoffStore
     private let onEvent: @MainActor (BrowserDownloadEvent) -> Void
     private let resumeDownload: ResumeDownload
@@ -173,6 +174,7 @@ final class BrowserDownloadCoordinator: NSObject {
         fileManager: FileManager = .default,
         temporaryDirectory: URL? = nil,
         completedHandoffStore: CompletedDownloadHandoffStore? = nil,
+        storageLocations: DownloadStorageLocations? = nil,
         resumeDownload: @escaping ResumeDownload = { webView, resumeData, completion in
             webView.resumeDownload(fromResumeData: resumeData, completionHandler: completion)
         },
@@ -191,6 +193,7 @@ final class BrowserDownloadCoordinator: NSObject {
             )
         self.fileManager = fileManager
         self.temporaryDirectory = resolvedTemporaryDirectory
+        self.storageLocations = storageLocations
         self.completedHandoffStore = resolvedHandoffStore
         self.resumeDownload = resumeDownload
         self.cancelUnownedDownload = cancelUnownedDownload
@@ -527,6 +530,12 @@ final class BrowserDownloadCoordinator: NSObject {
 
     func discardOrphanedTemporaryFiles() {
         completedHandoffStore.discardLegacyUnvalidatedFiles(in: temporaryDirectory)
+        for temporaryDirectory in storageDirectories {
+            discardOrphanedTemporaryFiles(in: temporaryDirectory)
+        }
+    }
+
+    private func discardOrphanedTemporaryFiles(in temporaryDirectory: URL) {
         guard let contents = try? fileManager.contentsOfDirectory(
             at: temporaryDirectory,
             includingPropertiesForKeys: nil
@@ -534,11 +543,20 @@ final class BrowserDownloadCoordinator: NSObject {
             return
         }
         for url in contents where url.pathExtension == "part" {
-            try? fileManager.removeItem(at: url)
+            guard let id = UUID(uuidString: String(url.lastPathComponent.prefix(36))),
+                  url.deletingLastPathComponent() == storageDirectory(for: id) else { continue }
+            do {
+                try storageLocations?.requireAvailable(id: id)
+                try fileManager.removeItem(at: url)
+            } catch {
+                // Keep the partial when its drive cannot be verified.
+            }
         }
     }
 
     private func discardPartialFiles(downloadID: UUID) throws {
+        try storageLocations?.requireAvailable(id: downloadID)
+        let temporaryDirectory = storageDirectory(for: downloadID)
         guard try DurableFileSystem.itemExists(at: temporaryDirectory) else {
             return
         }
@@ -560,6 +578,8 @@ final class BrowserDownloadCoordinator: NSObject {
     }
 
     private func freshPayloadURL(downloadID: UUID, attemptIdentifier: UUID) throws -> URL {
+        try storageLocations?.requireAvailable(id: downloadID)
+        let temporaryDirectory = storageDirectory(for: downloadID)
         try fileManager.createDirectory(at: temporaryDirectory, withIntermediateDirectories: true)
         let url = temporaryDirectory
             .appendingPathComponent("\(downloadID.uuidString)-\(attemptIdentifier.uuidString)")
@@ -568,6 +588,14 @@ final class BrowserDownloadCoordinator: NSObject {
             try fileManager.removeItem(at: url)
         }
         return url
+    }
+
+    private var storageDirectories: [URL] {
+        storageLocations?.directories(name: "BrowserDownloadRecovery", legacy: temporaryDirectory) ?? [temporaryDirectory]
+    }
+
+    private func storageDirectory(for id: UUID) -> URL {
+        storageLocations?.directory(for: id, name: "BrowserDownloadRecovery", legacy: temporaryDirectory) ?? temporaryDirectory
     }
 
     private func track(

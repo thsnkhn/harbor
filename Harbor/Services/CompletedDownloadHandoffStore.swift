@@ -151,6 +151,7 @@ nonisolated final class CompletedDownloadHandoffStore: @unchecked Sendable {
 
     private let fileManager: FileManager
     private let directoryURL: URL
+    private let storageLocations: DownloadStorageLocations?
     private let payloadHashOperation: PayloadHashOperation
     private let registryLock = NSLock()
     private var downloadLocks: [UUID: NSLock] = [:]
@@ -158,9 +159,11 @@ nonisolated final class CompletedDownloadHandoffStore: @unchecked Sendable {
     init(
         fileManager: FileManager = .default,
         directoryURL: URL? = nil,
+        storageLocations: DownloadStorageLocations? = nil,
         payloadHashOperation: @escaping PayloadHashOperation = DurableFileSystem.sha256
     ) {
         self.fileManager = fileManager
+        self.storageLocations = storageLocations
         self.directoryURL = directoryURL
             ?? HarborApplicationSupport.directoryURL(fileManager: fileManager)
                 .appendingPathComponent("CompletedDownloadHandoffs", isDirectory: true)
@@ -178,6 +181,8 @@ nonisolated final class CompletedDownloadHandoffStore: @unchecked Sendable {
             downloadID: proposedManifest.downloadID,
             attemptIdentifier: proposedManifest.attemptIdentifier
         ) {
+            try storageLocations?.requireAvailable(id: proposedManifest.downloadID)
+            let directoryURL = directory(for: proposedManifest.downloadID)
             try DurableFileSystem.createDirectoryIfNeeded(
                 at: directoryURL,
                 fileManager: fileManager
@@ -393,7 +398,7 @@ nonisolated final class CompletedDownloadHandoffStore: @unchecked Sendable {
                     }
                     if try DurableFileSystem.itemExists(at: hashingInput.stagingURL) {
                         try fileManager.removeItem(at: hashingInput.stagingURL)
-                        try DurableFileSystem.synchronizeDirectory(at: directoryURL)
+                        try DurableFileSystem.synchronizeParentDirectory(of: hashingInput.stagingURL)
                     }
                     return existing
                 } catch is CompletedDownloadHandoffError {
@@ -430,7 +435,7 @@ nonisolated final class CompletedDownloadHandoffStore: @unchecked Sendable {
                 at: hashingInput.stagingURL,
                 to: hashingInput.readyURL
             )
-            try DurableFileSystem.synchronizeDirectory(at: directoryURL)
+            try DurableFileSystem.synchronizeParentDirectory(of: hashingInput.readyURL)
             return CompletedDownloadHandoff(
                 packageURL: hashingInput.readyURL,
                 payloadURL: hashingInput.readyURL.appendingPathComponent(Self.payloadFilename),
@@ -587,13 +592,17 @@ nonisolated final class CompletedDownloadHandoffStore: @unchecked Sendable {
     }
 
     func entries() throws -> [CompletedDownloadHandoffEntry] {
+        try directories.flatMap { try entries(in: $0) }
+    }
+
+    private func entries(in directoryURL: URL) throws -> [CompletedDownloadHandoffEntry] {
         let exists = try withRegistryLock {
             try DurableFileSystem.itemExists(at: directoryURL)
         }
         guard exists else {
             return []
         }
-        promoteValidStagingPackages()
+        promoteValidStagingPackages(in: directoryURL)
         let contents = try withRegistryLock {
             try fileManager.contentsOfDirectory(
                 at: directoryURL,
@@ -654,11 +663,12 @@ nonisolated final class CompletedDownloadHandoffStore: @unchecked Sendable {
             attemptIdentifier: handoff.manifest.attemptIdentifier
         ) {
             do {
+                try storageLocations?.requireAvailable(id: handoff.manifest.downloadID)
                 if let manifest = manifestIfDecodable(at: handoff.packageURL) {
                     try removePlacementStagingLocked(for: manifest)
                 }
                 try fileManager.removeItem(at: handoff.packageURL)
-                try DurableFileSystem.synchronizeDirectory(at: directoryURL)
+                try DurableFileSystem.synchronizeParentDirectory(of: handoff.packageURL)
             } catch {
                 // Retain the package as the cleanup journal. Reconciliation
                 // will retry without losing the only reference to staging.
@@ -686,6 +696,8 @@ nonisolated final class CompletedDownloadHandoffStore: @unchecked Sendable {
             downloadID: downloadID,
             attemptIdentifier: attemptIdentifier ?? downloadID
         ) {
+            try storageLocations?.requireAvailable(id: downloadID)
+            let directoryURL = directory(for: downloadID)
             guard try DurableFileSystem.itemExists(at: directoryURL) else {
                 return
             }
@@ -721,10 +733,10 @@ nonisolated final class CompletedDownloadHandoffStore: @unchecked Sendable {
     }
 
     func discardPackage(at packageURL: URL) {
-        guard packageURL.deletingLastPathComponent().standardizedFileURL
-                == directoryURL.standardizedFileURL,
-              packageURL.pathExtension == Self.packageExtension,
-              let identifiers = identifiers(from: packageURL) else {
+        guard let identifiers = identifiers(from: packageURL),
+              packageURL.deletingLastPathComponent().standardizedFileURL
+                == directory(for: identifiers.downloadID).standardizedFileURL,
+              packageURL.pathExtension == Self.packageExtension else {
             return
         }
         withAttemptLock(
@@ -732,11 +744,12 @@ nonisolated final class CompletedDownloadHandoffStore: @unchecked Sendable {
             attemptIdentifier: identifiers.attemptIdentifier
         ) {
             do {
+                try storageLocations?.requireAvailable(id: identifiers.downloadID)
                 if let manifest = manifestIfDecodable(at: packageURL) {
                     try removePlacementStagingLocked(for: manifest)
                 }
                 try fileManager.removeItem(at: packageURL)
-                try DurableFileSystem.synchronizeDirectory(at: directoryURL)
+                try DurableFileSystem.synchronizeParentDirectory(of: packageURL)
             } catch {
                 // Keep the package as a retryable cleanup journal.
             }
@@ -744,7 +757,13 @@ nonisolated final class CompletedDownloadHandoffStore: @unchecked Sendable {
     }
 
     func discardOrphans(retaining retainedIDs: Set<UUID>) {
-        promoteValidStagingPackages()
+        for directoryURL in directories {
+            discardOrphans(retaining: retainedIDs, in: directoryURL)
+        }
+    }
+
+    private func discardOrphans(retaining retainedIDs: Set<UUID>, in directoryURL: URL) {
+        promoteValidStagingPackages(in: directoryURL)
         guard let contents = withRegistryLock({
             try? fileManager.contentsOfDirectory(
                 at: directoryURL,
@@ -768,6 +787,9 @@ nonisolated final class CompletedDownloadHandoffStore: @unchecked Sendable {
                     return
                 }
                 do {
+                    try storageLocations?.requireAvailable(id: identifiers.downloadID)
+                    guard url.deletingLastPathComponent().standardizedFileURL
+                        == directory(for: identifiers.downloadID).standardizedFileURL else { return }
                     if let manifest = manifestIfDecodable(at: url) {
                         try removePlacementStagingLocked(for: manifest)
                     }
@@ -800,13 +822,14 @@ nonisolated final class CompletedDownloadHandoffStore: @unchecked Sendable {
     }
 
     private func validatedHandoff(at packageURL: URL) throws -> CompletedDownloadHandoff {
-        guard packageURL.pathExtension == Self.packageExtension
+        guard let identifiers = identifiers(from: packageURL),
+              packageURL.pathExtension == Self.packageExtension
                 || packageURL.pathExtension == Self.stagingExtension,
               packageURL.deletingLastPathComponent().standardizedFileURL
-                == directoryURL.standardizedFileURL,
-              let identifiers = identifiers(from: packageURL) else {
+                == directory(for: identifiers.downloadID).standardizedFileURL else {
             throw CompletedDownloadHandoffError.invalidManifest
         }
+        try storageLocations?.requireAvailable(id: identifiers.downloadID)
         guard try DurableFileSystem.itemExists(at: packageURL) else {
             throw CompletedDownloadHandoffError.invalidManifest
         }
@@ -1094,12 +1117,13 @@ nonisolated final class CompletedDownloadHandoffStore: @unchecked Sendable {
     private func claimingManifest(
         at packageURL: URL
     ) throws -> CompletedDownloadHandoffManifest {
-        guard packageURL.pathExtension == Self.stagingExtension,
+        guard let identifiers = identifiers(from: packageURL),
+              packageURL.pathExtension == Self.stagingExtension,
               packageURL.deletingLastPathComponent().standardizedFileURL
-                == directoryURL.standardizedFileURL,
-              let identifiers = identifiers(from: packageURL) else {
+                == directory(for: identifiers.downloadID).standardizedFileURL else {
             throw CompletedDownloadHandoffError.invalidManifest
         }
+        try storageLocations?.requireAvailable(id: identifiers.downloadID)
         let packageValues = try packageURL.resourceValues(
             forKeys: [.isDirectoryKey, .isSymbolicLinkKey]
         )
@@ -1194,7 +1218,7 @@ nonisolated final class CompletedDownloadHandoffStore: @unchecked Sendable {
         attemptIdentifier: UUID,
         pathExtension: String
     ) -> URL {
-        directoryURL
+        directory(for: downloadID)
             .appendingPathComponent(
                 "\(downloadID.uuidString)-\(attemptIdentifier.uuidString)",
                 isDirectory: true
@@ -1227,7 +1251,7 @@ nonisolated final class CompletedDownloadHandoffStore: @unchecked Sendable {
         return (downloadID, attemptIdentifier)
     }
 
-    private func promoteValidStagingPackages() {
+    private func promoteValidStagingPackages(in directoryURL: URL) {
         guard let contents = withRegistryLock({
             try? fileManager.contentsOfDirectory(
                 at: directoryURL,
@@ -1245,6 +1269,7 @@ nonisolated final class CompletedDownloadHandoffStore: @unchecked Sendable {
                 attemptIdentifier: identifiers.attemptIdentifier
             ) {
                 do {
+                    try storageLocations?.requireAvailable(id: identifiers.downloadID)
                     try promoteStagingPackageLocked(at: url)
                 } catch is CompletedDownloadHandoffError {
                     // This entry cannot contain a complete payload. Removing
@@ -1291,7 +1316,15 @@ nonisolated final class CompletedDownloadHandoffStore: @unchecked Sendable {
         } else {
             try fileManager.moveItem(at: stagingURL, to: readyURL)
         }
-        try DurableFileSystem.synchronizeDirectory(at: directoryURL)
+        try DurableFileSystem.synchronizeParentDirectory(of: readyURL)
+    }
+
+    private var directories: [URL] {
+        storageLocations?.directories(name: "CompletedDownloadHandoffs", legacy: directoryURL) ?? [directoryURL]
+    }
+
+    private func directory(for id: UUID) -> URL {
+        storageLocations?.directory(for: id, name: "CompletedDownloadHandoffs", legacy: directoryURL) ?? directoryURL
     }
 
     private func withAttemptLock<T>(

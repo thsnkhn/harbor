@@ -1,60 +1,102 @@
 import SwiftUI
 
 struct SettingsView: View {
-    // TODO: Add a Tags settings tab when automatic tagging rules are introduced.
     let settings: AppSettingsStore
     @ObservedObject var updater: AppUpdater
+    @AppStorage("settings.selectedPane") private var selectedPaneID = SettingsPane.general.rawValue
+
+    private var selectedPane: SettingsPane {
+        SettingsPane(rawValue: selectedPaneID) ?? .general
+    }
 
     var body: some View {
-        TabView {
-            GeneralSettingsTab(settings: settings)
-                .accessibilityIdentifier(HarborAccessibility.settingsGeneral)
-                .tabItem {
-                    Label("General", systemImage: "gearshape")
-                }
+        TabView(selection: Binding(
+            get: { selectedPane },
+            set: { selectedPaneID = $0.rawValue }
+        )) {
+            ForEach(SettingsPane.allCases) { pane in
+                paneContent(for: pane)
+                    .tabItem {
+                        Label(pane.title, systemImage: pane.symbol)
+                            .accessibilityIdentifier("settings.navigation.\(pane.rawValue)")
+                    }
+                    .tag(pane)
+            }
+        }
+        .background(SettingsWindowResizing())
+        .frame(
+            minWidth: 760, idealWidth: 840, maxWidth: .infinity,
+            minHeight: 620, idealHeight: 720, maxHeight: .infinity
+        )
+    }
 
+    @ViewBuilder
+    private func paneContent(for pane: SettingsPane) -> some View {
+        switch pane {
+        case .general:
+            GeneralSettingsTab(settings: settings, updater: updater)
+                .accessibilityIdentifier(HarborAccessibility.settingsGeneral)
+        case .downloads:
             DownloadsSettingsTab(settings: settings)
                 .accessibilityIdentifier(HarborAccessibility.settingsDownloads)
-                .tabItem {
-                    Label("Downloads", systemImage: "folder")
-                }
-
+        case .media:
             MediaSettingsTab(settings: settings)
-                .tabItem {
-                    Label("Media", systemImage: "play.rectangle")
-                }
-
+                .accessibilityIdentifier("settings.media")
+        case .torrents:
             TorrentsSettingsTab(settings: settings)
                 .accessibilityIdentifier(HarborAccessibility.settingsTorrents)
-                .tabItem {
-                    Label("Torrents", systemImage: "arrow.up.arrow.down.circle")
-                }
-
+        case .bandwidth:
             BandwidthSettingsTab(settings: settings)
                 .accessibilityIdentifier(HarborAccessibility.settingsBandwidth)
-                .tabItem {
-                    Label("Bandwidth", systemImage: "speedometer")
-                }
-
-            UpdatesSettingsTab(updater: updater)
-                .accessibilityIdentifier(HarborAccessibility.settingsUpdates)
-                .tabItem {
-                    Label("Updates", systemImage: "arrow.triangle.2.circlepath")
-                }
-
-            ExperimentalSettingsTab(settings: settings)
-                .accessibilityIdentifier(HarborAccessibility.settingsExperimental)
-                .tabItem {
-                    Label("Experimental", systemImage: "flask")
-                }
-
-            AcknowledgmentsSettingsTab()
-                .accessibilityIdentifier(HarborAccessibility.settingsAcknowledgments)
-                .tabItem {
-                    Label("Acknowledgments", systemImage: "info.circle")
-                }
+        case .network:
+            NetworkSettingsTab(settings: settings)
+                .accessibilityIdentifier("settings.network")
+        case .extensions:
+            ExtensionsSettingsTab()
+                .accessibilityIdentifier("settings.extensions")
         }
-        .frame(width: 640, height: 460)
-        .scenePadding()
+    }
+}
+
+private enum SettingsPane: String, CaseIterable, Identifiable {
+    case general, downloads, media, torrents, bandwidth, network, extensions
+
+    var id: Self { self }
+
+    var title: LocalizedStringKey {
+        switch self {
+        case .general: "General"
+        case .downloads: "Downloads"
+        case .media: "Media"
+        case .torrents: "Torrents"
+        case .bandwidth: "Bandwidth"
+        case .network: "Network"
+        case .extensions: "Extensions"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .general: "gearshape"
+        case .downloads: "folder"
+        case .media: "play.rectangle"
+        case .torrents: "arrow.up.arrow.down.circle"
+        case .bandwidth: "speedometer"
+        case .network: "network"
+        case .extensions: "puzzlepiece.extension"
+        }
+    }
+}
+
+// Settings scenes can omit the resizable style even with contentMinSize.
+private struct SettingsWindowResizing: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView { ResizableSettingsView() }
+    func updateNSView(_ nsView: NSView, context: Context) {}
+
+    private final class ResizableSettingsView: NSView {
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            window?.styleMask.insert(.resizable)
+        }
     }
 }

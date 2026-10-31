@@ -1,47 +1,18 @@
-import SwiftUI
+import AppKit
 
-struct AcknowledgmentsSettingsTab: View {
-    private let acknowledgments = OpenSourceAcknowledgment.all
-
-    var body: some View {
-        Form {
-            Section {
-                Text("Harbor is made possible by these open-source projects.")
-                    .foregroundStyle(.secondary)
-            }
-
-            Section("Open Source Software") {
-                ForEach(acknowledgments) { acknowledgment in
-                    AcknowledgmentRow(acknowledgment: acknowledgment)
-                }
-            }
-        }
-        .formStyle(.grouped)
-        .harborSurface()
-    }
-}
-
-private struct AcknowledgmentRow: View {
-    let acknowledgment: OpenSourceAcknowledgment
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 5) {
-            HStack(alignment: .firstTextBaseline) {
-                Text(acknowledgment.name)
-                    .font(.headline)
-
-                Spacer()
-
-                Text(acknowledgment.license)
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-            }
-
-            Text(acknowledgment.purpose)
-                .font(.callout)
-                .foregroundStyle(.secondary)
-        }
-        .padding(.vertical, 4)
+// Keep the native About panel as the single home for dependency credits.
+enum HarborAcknowledgments {
+    static var credits: NSAttributedString {
+        let text = "Open Source Software\n\n" + OpenSourceAcknowledgment.all.map {
+            "\($0.name)\n\($0.purpose)\n\($0.license)"
+        }.joined(separator: "\n\n")
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.alignment = .center
+        return NSAttributedString(string: text, attributes: [
+            .font: NSFont.systemFont(ofSize: NSFont.smallSystemFontSize),
+            .foregroundColor: NSColor.labelColor,
+            .paragraphStyle: paragraph
+        ])
     }
 }
 

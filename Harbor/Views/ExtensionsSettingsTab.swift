@@ -1,9 +1,8 @@
 import SafariServices
 import SwiftUI
 
-struct ExperimentalSettingsTab: View {
-    @Bindable var settings: AppSettingsStore
-    // TODO: Move Safari setup out of Experimental when the extension is stable.
+struct ExtensionsSettingsTab: View {
+    // TODO: Remove the notice when extension setup and automatic handoffs are stable.
     @Environment(\.scenePhase) private var scenePhase
     @State private var extensionEnabled: Bool?
     @State private var errorMessage: String?
@@ -13,17 +12,16 @@ struct ExperimentalSettingsTab: View {
     var body: some View {
         Form {
             Section {
-                Text("Try features that are still in development.")
+                Label("Extensions are experimental. More features are coming.", systemImage: "info.circle")
+                    .font(.callout)
                     .foregroundStyle(.secondary)
             }
 
             Section("Safari Extension") {
-                Text("Send download links from Safari to Harbor.")
-
                 LabeledContent("Status") {
                     Text(extensionStatus)
                         .foregroundStyle(.secondary)
-                        .accessibilityIdentifier("settings.experimental.safari.status")
+                        .accessibilityIdentifier("settings.extensions.safari.status")
                 }
 
                 Button(extensionEnabled == true
@@ -35,7 +33,7 @@ struct ExperimentalSettingsTab: View {
                         }
                     }
                 }
-                .accessibilityIdentifier("settings.experimental.safari.manage")
+                .accessibilityIdentifier("settings.extensions.safari.manage")
 
                 Text("Turn on Harbor in Safari Settings → Extensions, then allow access to the websites you want to use.")
                     .font(.callout)
@@ -48,24 +46,14 @@ struct ExperimentalSettingsTab: View {
                 }
             }
 
-            Section("Download List") {
-                Toggle("Enable download list import", isOn: $settings.manifestImportEnabled)
-                    .accessibilityIdentifier("settings.experimental.manifest")
-                Text("Add multiple downloads from a text file, with one link per line.")
-                    .font(.callout)
+            Section("Third-party Extensions") {
+                Link("Get Chrome Extension…", destination: URL(string: "https://github.com/head-less-ghost/harbor-chrome-extension")!)
+                Link("Get Firefox Extension…", destination: URL(string: "https://github.com/head-less-ghost/harbor-firefox-extension")!)
+                Text("Requires a local helper. Use manual forwarding; automatic forwarding can cancel the browser download before you confirm it in Harbor.")
+                    .font(.caption)
                     .foregroundStyle(.secondary)
             }
 
-            Section("Torrent VPN") {
-                Toggle("Enable torrent VPN", isOn: $settings.torrentVPNEnabled)
-                    .accessibilityIdentifier("settings.experimental.vpn")
-                Text("When enabled, torrents wait for this VPN. Regular downloads and other apps use their normal connection.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                if settings.torrentVPNEnabled {
-                    TorrentVPNSettingsContent(controller: settings.torrentVPN)
-                }
-            }
         }
         .formStyle(.grouped)
         .harborSurface()

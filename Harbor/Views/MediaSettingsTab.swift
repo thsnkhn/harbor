@@ -16,11 +16,13 @@ struct MediaSettingsTab: View {
                         Text(resolution.title).tag(resolution)
                     }
                 }
-                Text("MP4 compatibility selects H.264 video and AAC audio when available. Harbor does not convert unsupported formats.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                Text("Applies to new video downloads, including pasted batches. You can change the format for each download. Audio and image downloads are unchanged.")
-                    .font(.callout)
+                if settings.mediaPreferredFormat == .mp4Compatible {
+                    Text("Uses H.264 video and AAC audio when available. Unsupported formats are not converted.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Text("Defaults for new video downloads. You can override them for each download.")
+                    .font(.caption)
                     .foregroundStyle(.secondary)
             }
         }

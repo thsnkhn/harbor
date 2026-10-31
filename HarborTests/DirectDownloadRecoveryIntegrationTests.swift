@@ -11,6 +11,12 @@ extension HarborModelAndSafetyTests {
             .appendingPathComponent("HarborDirectRecoveryTests-\(UUID().uuidString)", isDirectory: true)
         let recoveryRoot = testRoot.appendingPathComponent("Recovery", isDirectory: true)
         defer { try? fileManager.removeItem(at: testRoot) }
+        let destination = testRoot.appendingPathComponent("Destination", isDirectory: true)
+        try fileManager.createDirectory(at: destination, withIntermediateDirectories: true)
+        let storage = DownloadStorageLocations(directoryURL: testRoot)
+        try storage.preserveLegacyLocations(for: [])
+        let id = UUID()
+        try storage.prepare(id: id, destination: destination)
 
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [InterruptingRangeURLProtocol.self]
@@ -19,28 +25,36 @@ extension HarborModelAndSafetyTests {
         let completion = expectation(description: "The range request completes the file")
         let eventState = DirectDownloadTestEventState()
 
-        let coordinator = DownloadCoordinator(
-            eventHandler: { event in
-                switch event {
-                case let .failed(_, _, failure):
-                    if eventState.recordFailure(failure) == 1 {
-                        firstFailure.fulfill()
-                    }
-                case let .progress(_, _, bytesWritten, expectedBytes, _):
-                    eventState.recordProgress(bytesWritten: bytesWritten, expectedBytes: expectedBytes)
-                case let .finished(_, _, handoff):
-                    eventState.recordCompletion(handoff)
-                    completion.fulfill()
-                default:
-                    break
+        let handleEvent: DownloadCoordinator.EventHandler = { event in
+            switch event {
+            case let .failed(_, _, failure):
+                if eventState.recordFailure(failure) == 1 {
+                    firstFailure.fulfill()
                 }
-            },
-            fileManager: fileManager,
-            recoveryDirectoryURL: recoveryRoot,
-            sessionConfiguration: configuration
-        )
+            case let .progress(_, _, bytesWritten, expectedBytes, _):
+                eventState.recordProgress(bytesWritten: bytesWritten, expectedBytes: expectedBytes)
+            case let .finished(_, _, handoff):
+                eventState.recordCompletion(handoff)
+                completion.fulfill()
+            default:
+                break
+            }
+        }
+        func makeCoordinator(storage: DownloadStorageLocations) -> DownloadCoordinator {
+            DownloadCoordinator(
+                eventHandler: handleEvent,
+                fileManager: fileManager,
+                recoveryDirectoryURL: recoveryRoot,
+                completedHandoffStore: CompletedDownloadHandoffStore(
+                    directoryURL: testRoot.appendingPathComponent("LegacyHandoffs"),
+                    storageLocations: storage
+                ),
+                storageLocations: storage,
+                sessionConfiguration: configuration
+            )
+        }
+        let coordinator = makeCoordinator(storage: storage)
 
-        let id = UUID()
         let sourceURL = try XCTUnwrap(URL(string: "https://recovery.example.test/file.bin"))
         try coordinator.startDownload(id: id, sourceURL: sourceURL)
         await fulfillment(of: [firstFailure], timeout: 2)
@@ -53,12 +67,18 @@ extension HarborModelAndSafetyTests {
             5
         )
 
-        try coordinator.startDownload(id: id, sourceURL: sourceURL)
+        XCTAssertFalse(fileManager.fileExists(atPath: recoveryRoot.path))
+        let partial = destination.appendingPathComponent(".harbor-downloads/DirectDownloadRecovery/\(id.uuidString).part")
+        XCTAssertEqual(try Data(contentsOf: partial), Data("abcde".utf8))
+
+        let reloadedCoordinator = makeCoordinator(storage: DownloadStorageLocations(directoryURL: testRoot))
+        try reloadedCoordinator.startDownload(id: id, sourceURL: sourceURL)
         await fulfillment(of: [completion], timeout: 2)
 
         let unwrappedResultURL = try XCTUnwrap(eventState.completedURL)
         defer { try? fileManager.removeItem(at: unwrappedResultURL) }
         XCTAssertEqual(try Data(contentsOf: unwrappedResultURL), Data("abcdefghij".utf8))
+        XCTAssertTrue(unwrappedResultURL.path.hasPrefix(destination.appendingPathComponent(".harbor-downloads/CompletedDownloadHandoffs").path + "/"))
         XCTAssertNil(coordinator.recoverySnapshot(id: id, sourceURL: sourceURL))
 
         let requests = InterruptingRangeURLProtocol.capturedHeaders
@@ -66,6 +86,29 @@ extension HarborModelAndSafetyTests {
         XCTAssertNil(requests[0].range)
         XCTAssertEqual(requests[1].range, "bytes=5-")
         XCTAssertEqual(requests[1].ifRange, "\"test-etag\"")
+    }
+
+    func testStorageMigrationKeepsLegacyRecoveryAndOnlyRunsOnce() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("HarborStorageMigration-\(UUID())")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let oldID = UUID()
+        let newID = UUID()
+        let storage = DownloadStorageLocations(directoryURL: root)
+        let legacy = root.appendingPathComponent("LegacyRecovery")
+        try storage.preserveLegacyLocations(for: [oldID], directories: ["DirectDownloadRecovery": legacy])
+        try storage.prepare(id: oldID, destination: root)
+        XCTAssertEqual(storage.directory(for: oldID, name: "DirectDownloadRecovery", legacy: legacy), legacy)
+
+        let restored = DownloadStorageLocations(directoryURL: root)
+        XCTAssertEqual(restored.directory(for: oldID, name: "DirectDownloadRecovery", legacy: root.appendingPathComponent("ChangedDefault")), legacy)
+        // A new queued record must not become a legacy download after relaunch.
+        try restored.preserveLegacyLocations(for: [oldID, newID])
+        try restored.prepare(id: newID, destination: root)
+        let chosenRoot = restored.directory(for: newID, name: "DirectDownloadRecovery", legacy: legacy)
+        XCTAssertEqual(chosenRoot, root.appendingPathComponent(".harbor-downloads/DirectDownloadRecovery", isDirectory: true))
+        try restored.prepare(id: newID, destination: root, customRoot: root.appendingPathComponent("ChangedSetting"))
+        XCTAssertEqual(restored.directory(for: newID, name: "DirectDownloadRecovery", legacy: legacy), chosenRoot)
     }
 
     func testChangedResumeValidatorRestartsWithoutCombiningRepresentations() async throws {

@@ -82,6 +82,8 @@ Or download the latest DMG:
 
 Once installed, Harbor can check for new versions from the app menu and update through its built-in Sparkle updater.
 
+See [release preparation](docs/RELEASING.md) for Intel and Apple Silicon packaging and the update path for existing installations.
+
 ## URL handoff
 
 Browser extensions, command-line tools, and automations can open Harbor with an HTTP or HTTPS download URL:

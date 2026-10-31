@@ -39,7 +39,10 @@ extension HarborModelAndSafetyTests {
         )
         let attemptIdentifier = UUID()
         let actualBytes = Int64(firstPayload.count + secondPayload.count)
-        let recoveryFolder = temporaryRoot
+        let storage = DownloadStorageLocations(directoryURL: persistenceRoot)
+        try storage.preserveLegacyLocations(for: [])
+        try storage.prepare(id: item.id, destination: destinationRoot)
+        let recoveryFolder = storage.directory(for: item.id, name: "MediaDownloads", legacy: temporaryRoot)
             .appendingPathComponent(item.id.uuidString, isDirectory: true)
         try fileManager.createDirectory(at: recoveryFolder, withIntermediateDirectories: true)
         try writeChildOwnedMediaCompletionEvidence(
@@ -57,7 +60,8 @@ extension HarborModelAndSafetyTests {
         let mediaService = MediaDownloadService(
             eventHandler: { _, _ in },
             fileManager: fileManager,
-            temporaryRoot: temporaryRoot
+            temporaryRoot: temporaryRoot,
+            storageLocations: storage
         )
         let settings = AppSettingsStore(userDefaults: userDefaults)
         settings.startDownloadsAutomatically = false
@@ -67,6 +71,7 @@ extension HarborModelAndSafetyTests {
             directRecoveryDirectoryURL: testRoot.appendingPathComponent("DirectRecovery"),
             completedHandoffDirectoryURL: testRoot.appendingPathComponent("Handoffs"),
             browserRecoveryDirectoryURL: testRoot.appendingPathComponent("BrowserRecovery"),
+            storageLocations: storage,
             mediaService: mediaService
         )
         await center.initializeIfNeeded()

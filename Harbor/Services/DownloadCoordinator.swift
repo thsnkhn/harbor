@@ -268,6 +268,7 @@ final class DownloadCoordinator: NSObject, @unchecked Sendable {
         recoveryDirectoryURL: URL? = nil,
         temporaryDirectory: URL? = nil,
         completedHandoffStore: CompletedDownloadHandoffStore? = nil,
+        storageLocations: DownloadStorageLocations? = nil,
         sessionConfiguration: URLSessionConfiguration = .default,
         proxySettings: NetworkProxySettings = .system
     ) {
@@ -280,7 +281,8 @@ final class DownloadCoordinator: NSObject, @unchecked Sendable {
                 .appendingPathComponent("HarborDownloads", isDirectory: true)
         self.recoveryStore = DirectDownloadRecoveryStore(
             fileManager: fileManager,
-            directoryURL: recoveryDirectoryURL
+            directoryURL: recoveryDirectoryURL,
+            storageLocations: storageLocations
         )
         self.completedHandoffStore = completedHandoffStore
             ?? CompletedDownloadHandoffStore(

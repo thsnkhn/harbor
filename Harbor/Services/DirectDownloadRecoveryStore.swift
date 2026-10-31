@@ -64,13 +64,16 @@ final class DirectDownloadRecoveryStore: @unchecked Sendable {
 
     private let fileManager: FileManager
     private let directoryURL: URL
+    private let storageLocations: DownloadStorageLocations?
     private let lock = NSLock()
 
     init(
         fileManager: FileManager = .default,
-        directoryURL: URL? = nil
+        directoryURL: URL? = nil,
+        storageLocations: DownloadStorageLocations? = nil
     ) {
         self.fileManager = fileManager
+        self.storageLocations = storageLocations
         self.directoryURL = directoryURL
             ?? HarborApplicationSupport.directoryURL(fileManager: fileManager)
                 .appendingPathComponent("DirectDownloadRecovery", isDirectory: true)
@@ -81,6 +84,7 @@ final class DirectDownloadRecoveryStore: @unchecked Sendable {
         sourceURL: URL
     ) throws -> DirectDownloadRecoveryPreparation {
         try lock.withLock {
+            try storageLocations?.requireAvailable(id: id)
             do {
                 let preparation = try recoveryPreparation(id: id, sourceURL: sourceURL)
                 if preparation.snapshot == nil {
@@ -113,6 +117,7 @@ final class DirectDownloadRecoveryStore: @unchecked Sendable {
     ) -> DirectDownloadRecoveryLookup {
         lock.withLock { () -> DirectDownloadRecoveryLookup in
             do {
+                try storageLocations?.requireAvailable(id: id)
                 guard let snapshot = try recoveryPreparation(
                     id: id,
                     sourceURL: sourceURL
@@ -237,8 +242,9 @@ final class DirectDownloadRecoveryStore: @unchecked Sendable {
 
     func openFreshFile(id: UUID) throws -> FileHandle {
         try lock.withLock {
+            try storageLocations?.requireAvailable(id: id)
             try DurableFileSystem.createDirectoryIfNeeded(
-                at: directoryURL,
+                at: directory(for: id),
                 fileManager: fileManager
             )
             let partialURL = partialURL(for: id)
@@ -255,6 +261,7 @@ final class DirectDownloadRecoveryStore: @unchecked Sendable {
         expectedOffset: Int64
     ) throws -> FileHandle {
         try lock.withLock {
+            try storageLocations?.requireAvailable(id: id)
             let partialURL = partialURL(for: id)
             let actualOffset = try fileSizeIfPresent(at: partialURL) ?? 0
             guard actualOffset == expectedOffset else {
@@ -322,30 +329,40 @@ final class DirectDownloadRecoveryStore: @unchecked Sendable {
 
     func discardOrphans(retaining retainedIDs: Set<UUID>) {
         lock.withLock {
-            guard let contents = try? fileManager.contentsOfDirectory(
-                at: directoryURL,
-                includingPropertiesForKeys: nil
-            ) else {
-                return
-            }
+            for directoryURL in directories {
+                guard let contents = try? fileManager.contentsOfDirectory(
+                    at: directoryURL,
+                    includingPropertiesForKeys: nil
+                ) else {
+                    continue
+                }
 
-            let ids = Set(contents.compactMap { url -> UUID? in
-                UUID(uuidString: url.deletingPathExtension().lastPathComponent)
-            })
-            for id in ids.subtracting(retainedIDs) {
-                try? discardLocked(id: id)
+                let ids = Set(contents.compactMap { url -> UUID? in
+                    UUID(uuidString: url.deletingPathExtension().lastPathComponent)
+                })
+                for id in ids.subtracting(retainedIDs) {
+                    try? discardLocked(id: id)
+                }
             }
         }
     }
 
+    private var directories: [URL] {
+        storageLocations?.directories(name: "DirectDownloadRecovery", legacy: directoryURL) ?? [directoryURL]
+    }
+
+    private func directory(for id: UUID) -> URL {
+        storageLocations?.directory(for: id, name: "DirectDownloadRecovery", legacy: directoryURL) ?? directoryURL
+    }
+
     private func partialURL(for id: UUID) -> URL {
-        directoryURL
+        directory(for: id)
             .appendingPathComponent(id.uuidString)
             .appendingPathExtension("part")
     }
 
     private func metadataURL(for id: UUID) -> URL {
-        directoryURL
+        directory(for: id)
             .appendingPathComponent(id.uuidString)
             .appendingPathExtension("json")
     }
@@ -426,8 +443,9 @@ final class DirectDownloadRecoveryStore: @unchecked Sendable {
         _ metadata: DirectDownloadRecoveryMetadata,
         id: UUID
     ) throws {
+        try storageLocations?.requireAvailable(id: id)
         try DurableFileSystem.createDirectoryIfNeeded(
-            at: directoryURL,
+            at: directory(for: id),
             fileManager: fileManager
         )
         let data = try JSONEncoder().encode(metadata)
@@ -504,6 +522,7 @@ final class DirectDownloadRecoveryStore: @unchecked Sendable {
     }
 
     private func discardLocked(id: UUID) throws {
+        try storageLocations?.requireAvailable(id: id)
         try removeItemIfPresent(at: partialURL(for: id))
         try removeItemIfPresent(at: metadataURL(for: id))
     }

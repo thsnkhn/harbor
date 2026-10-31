@@ -226,6 +226,7 @@ actor MediaDownloadService {
     private let eventHandler: EventHandler
     private let fileManager: FileManager
     private let temporaryRoot: URL
+    private let storageLocations: DownloadStorageLocations?
     private var runtime: MediaRuntimeResolution?
     private var runningDownloads: [UUID: RunningDownload] = [:]
     private var startingDownloads: [UUID: StartingDownload] = [:]
@@ -242,11 +243,13 @@ actor MediaDownloadService {
     init(
         eventHandler: @escaping EventHandler,
         fileManager: FileManager = .default,
-        temporaryRoot: URL? = nil
+        temporaryRoot: URL? = nil,
+        storageLocations: DownloadStorageLocations? = nil
     ) {
         self.eventHandler = eventHandler
         self.fileManager = fileManager
         self.temporaryRoot = temporaryRoot ?? Self.defaultTemporaryRoot(fileManager: fileManager)
+        self.storageLocations = storageLocations
     }
 
     func metadata(for url: URL) async throws -> MediaDownloadMetadata {
@@ -335,7 +338,7 @@ actor MediaDownloadService {
             runningDownloads.values.map(\.processOwnership.processGroupIdentifier)
         )
         guard Self.hasUntrackedProcessReferencingRecoveryRoot(
-            temporaryRoot,
+            temporaryRoot(for: id),
             in: processes,
             trackedProcessGroups: trackedProcessGroups
         ) == false else {
@@ -557,15 +560,7 @@ actor MediaDownloadService {
     }
 
     func discardOrphanedRecoveryData(retaining retainedIDs: Set<UUID>) throws {
-        guard try DurableFileSystem.itemExists(at: temporaryRoot) else {
-            return
-        }
-        try validateTemporaryRoot()
-        let entries = try fileManager.contentsOfDirectory(
-            at: temporaryRoot,
-            includingPropertiesForKeys: [.isDirectoryKey],
-            options: [.skipsHiddenFiles]
-        )
+        let entries = try temporaryFolders()
 
         // Process discovery is part of the deletion precondition. If it is
         // unavailable, preserve every recovery directory rather than treating
@@ -648,15 +643,7 @@ actor MediaDownloadService {
     }
 
     func completedDownloadEntries() throws -> [MediaCompletionEntry] {
-        guard try DurableFileSystem.itemExists(at: temporaryRoot) else {
-            return []
-        }
-        try validateTemporaryRoot()
-        let folders = try fileManager.contentsOfDirectory(
-            at: temporaryRoot,
-            includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey],
-            options: [.skipsHiddenFiles]
-        )
+        let folders = try temporaryFolders()
 
         var entries: [MediaCompletionEntry] = []
         for folder in folders {
@@ -1384,7 +1371,27 @@ actor MediaDownloadService {
     }
 
     private func temporaryFolder(for id: UUID) -> URL {
-        temporaryRoot.appendingPathComponent(id.uuidString, isDirectory: true)
+        temporaryRoot(for: id).appendingPathComponent(id.uuidString, isDirectory: true)
+    }
+
+    private func temporaryRoot(for id: UUID) -> URL {
+        storageLocations?.directory(for: id, name: "MediaDownloads", legacy: temporaryRoot) ?? temporaryRoot
+    }
+
+    private var temporaryRoots: [URL] {
+        storageLocations?.directories(name: "MediaDownloads", legacy: temporaryRoot) ?? [temporaryRoot]
+    }
+
+    private func temporaryFolders() throws -> [URL] {
+        try temporaryRoots.flatMap { root -> [URL] in
+            guard try DurableFileSystem.itemExists(at: root) else { return [] }
+            try validateTemporaryRoot(root)
+            return try fileManager.contentsOfDirectory(
+                at: root,
+                includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey],
+                options: [.skipsHiddenFiles]
+            )
+        }
     }
 
     private func attemptManifestURL(id: UUID) -> URL {
@@ -1941,6 +1948,9 @@ actor MediaDownloadService {
     }
 
     private func createAndValidateTemporaryFolder(_ folder: URL) throws {
+        if let id = UUID(uuidString: folder.lastPathComponent) {
+            try storageLocations?.requireAvailable(id: id)
+        }
         try fileManager.createDirectory(
             at: folder,
             withIntermediateDirectories: true
@@ -1949,7 +1959,12 @@ actor MediaDownloadService {
     }
 
     private func validateTemporaryFolder(_ folder: URL) throws {
-        try validateTemporaryRoot()
+        guard let id = UUID(uuidString: folder.lastPathComponent) else {
+            throw MediaDownloadError.unavailable("Harbor’s media recovery directory has an invalid name.")
+        }
+        try storageLocations?.requireAvailable(id: id)
+        let temporaryRoot = temporaryRoot(for: id)
+        try validateTemporaryRoot(temporaryRoot)
         let folderValues = try folder.resourceValues(
             forKeys: [.isDirectoryKey, .isSymbolicLinkKey]
         )
@@ -1964,7 +1979,7 @@ actor MediaDownloadService {
         }
     }
 
-    private func validateTemporaryRoot() throws {
+    private func validateTemporaryRoot(_ temporaryRoot: URL) throws {
         let values = try temporaryRoot.resourceValues(
             forKeys: [.isDirectoryKey, .isSymbolicLinkKey]
         )
@@ -2057,7 +2072,7 @@ actor MediaDownloadService {
                 manifest: manifest,
                 currentProcessIdentifier: currentPID,
                 currentProcessGroupIdentifier: currentProcessGroupIdentifier,
-                temporaryRoot: temporaryRoot
+                temporaryRoot: temporaryRoot(for: manifest.downloadID)
             ) else {
                 if processAtRecordedPID.startSignature != manifest.startSignature
                     || processAtRecordedPID.executablePath != manifest.executablePath {
@@ -2139,11 +2154,13 @@ actor MediaDownloadService {
         let trackedProcessGroups = Set(
             runningDownloads.values.map(\.processOwnership.processGroupIdentifier)
         )
-        guard Self.hasUntrackedProcessReferencingRecoveryRoot(
-            temporaryRoot,
-            in: remainingProcesses,
-            trackedProcessGroups: trackedProcessGroups
-        ) == false else {
+        guard temporaryRoots.allSatisfy({ root in
+            Self.hasUntrackedProcessReferencingRecoveryRoot(
+                root,
+                in: remainingProcesses,
+                trackedProcessGroups: trackedProcessGroups
+            ) == false
+        }) else {
             // A crash can occur between process creation and durable marker
             // publication. The recovery-root argument proves only that another
             // writer may exist; it is deliberately not sufficient authority to
@@ -2374,15 +2391,7 @@ actor MediaDownloadService {
     }
 
     private func processOwnershipManifests() throws -> [MediaProcessOwnershipManifest] {
-        guard try DurableFileSystem.itemExists(at: temporaryRoot) else {
-            return []
-        }
-        try validateTemporaryRoot()
-        let folders = try fileManager.contentsOfDirectory(
-            at: temporaryRoot,
-            includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey],
-            options: [.skipsHiddenFiles]
-        )
+        let folders = try temporaryFolders()
         return folders.compactMap { folder in
             guard let id = UUID(uuidString: folder.lastPathComponent) else {
                 return nil
@@ -2401,15 +2410,7 @@ actor MediaDownloadService {
     }
 
     private func processOwnershipMarkerIDs() throws -> Set<UUID> {
-        guard try DurableFileSystem.itemExists(at: temporaryRoot) else {
-            return []
-        }
-        try validateTemporaryRoot()
-        let folders = try fileManager.contentsOfDirectory(
-            at: temporaryRoot,
-            includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey],
-            options: [.skipsHiddenFiles]
-        )
+        let folders = try temporaryFolders()
         var identifiers = Set<UUID>()
         for folder in folders {
             guard let id = UUID(uuidString: folder.lastPathComponent),

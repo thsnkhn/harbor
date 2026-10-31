@@ -28,3 +28,4 @@ Secrets/
 
 # Misc
 *.moved-aside
+__pycache__/

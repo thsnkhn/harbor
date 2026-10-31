@@ -2,13 +2,12 @@ import XCTest
 
 @MainActor
 final class HarborSettingsUITests: HarborUITestCase {
-    func testSettingsTabsAndPersistedGeneralControls() {
+    func testSettingsNavigationAndPersistedDownloadControls() {
         launchHarbor()
         app.typeKey(",", modifierFlags: [.command])
 
-        let general = app.scrollViews["settings.general"].firstMatch
-        XCTAssertTrue(general.waitForExistence(timeout: 10))
-        let startImmediately = general.switches.firstMatch
+        selectSettingsPane("downloads")
+        let startImmediately = app.switches["settings.downloads.startImmediately"].firstMatch
         XCTAssertTrue(startImmediately.waitForExistence(timeout: 10))
         let originalValue = String(describing: startImmediately.value)
         startImmediately.click()
@@ -27,29 +26,31 @@ final class HarborSettingsUITests: HarborUITestCase {
         app.terminate()
         launchHarbor()
         app.typeKey(",", modifierFlags: [.command])
-        let relaunchedGeneral = app.scrollViews["settings.general"].firstMatch
-        XCTAssertTrue(relaunchedGeneral.waitForExistence(timeout: 10))
-        XCTAssertEqual(String(describing: relaunchedGeneral.switches.firstMatch.value), toggledValue)
+        let restoredControl = app.switches["settings.downloads.startImmediately"].firstMatch
+        XCTAssertTrue(restoredControl.waitForExistence(timeout: 10), "Settings must reopen the last category")
+        XCTAssertEqual(String(describing: restoredControl.value), toggledValue)
 
-        for tab in ["Downloads", "Torrents", "Bandwidth", "Updates", "Acknowledgments"] {
-            let button = app.buttons[tab].firstMatch
-            XCTAssertTrue(button.waitForExistence(timeout: 5), "Missing settings tab \(tab)")
-            button.click()
+        for pane in ["general", "downloads", "media", "torrents", "bandwidth", "network", "extensions"] {
+            selectSettingsPane(pane)
+            XCTAssertTrue(app.scrollViews["settings.\(pane)"].firstMatch.waitForExistence(timeout: 5))
         }
-        XCTAssertTrue(app.staticTexts["yt-dlp"].exists)
-        XCTAssertTrue(app.staticTexts["Deno"].exists)
+        XCTAssertTrue(app.staticTexts["Extensions are experimental. More features are coming."].exists)
     }
 
-    func testTorrentsTabOffersNetworkInterfaceBinding() {
+    func testNetworkPaneOffersTorrentInterfaceBinding() {
         launchHarbor()
         app.typeKey(",", modifierFlags: [.command])
 
-        let torrentsTab = app.buttons["Torrents"].firstMatch
-        XCTAssertTrue(torrentsTab.waitForExistence(timeout: 10))
-        torrentsTab.click()
+        selectSettingsPane("network")
 
         let interfacePicker = app.popUpButtons["settings.torrents.networkInterface"].firstMatch
         XCTAssertTrue(interfacePicker.waitForExistence(timeout: 10))
         XCTAssertEqual(String(describing: interfacePicker.value), "Automatic")
     }
+    private func selectSettingsPane(_ name: String) {
+        let item = app.toolbars.buttons[name.capitalized].firstMatch
+        XCTAssertTrue(item.waitForExistence(timeout: 10), "Missing settings category \(name)")
+        item.click()
+    }
+
 }
