@@ -2986,76 +2986,97 @@ final class DownloadCenter {
         isWatchedImport: Bool
     ) async {
         do {
-            let managedSource: ManagedTorrentSource
-            if let preparedTorrentMetainfo = request.preparedTorrentMetainfo {
-                _ = try TorrentMetainfoParser.preview(from: preparedTorrentMetainfo)
-                if request.sourceKind == .magnetLink {
-                    guard let expectedInfoHash = ManagedTorrentSourceStore.normalizedInfoHash(
-                        MagnetLinkMetadata(url: request.sourceURL).infoHash
-                    ) else {
-                        throw TorrentMetainfoError.malformed
-                    }
-                    let actualInfoHash = ManagedTorrentSourceStore.fingerprint(for: preparedTorrentMetainfo)
-                    guard actualInfoHash == expectedInfoHash else {
-                        throw TorrentMetainfoError.malformed
-                    }
-                }
-                managedSource = try await managedTorrentSourceStore.prepareTorrentData(
-                    preparedTorrentMetainfo,
-                    originalURL: request.sourceURL
-                )
-            } else if request.sourceURL.isFileURL {
-                managedSource = try await managedTorrentSourceStore.prepareLocalTorrent(
-                    at: request.sourceURL,
-                    originalURL: request.sourceURL
-                )
-            } else {
-                managedSource = try await managedTorrentSourceStore.fetchRemoteTorrent(
-                    from: request.sourceURL,
-                    requestHeaders: request.requestHeaders,
-                    proxySettings: settings.proxySettings
-                )
-            }
-
-            await backfillLegacyTorrentFingerprints()
-            guard isShuttingDown == false else {
-                return
-            }
-
-            if let existingItem = downloads.first(where: {
-                Self.torrentIdentity(for: $0) == managedSource.fingerprint
-                    || ($0.torrentFingerprint == nil
-                        && $0.sourceURL.isFileURL
-                        && $0.sourceURL.standardizedFileURL == request.sourceURL.standardizedFileURL)
-            }) {
-                if isWatchedImport == false {
-                    selectDownload(existingItem.id)
-                    activeAlert = UserAlert(
-                        title: String(localized: "Torrent Already Added"),
-                        message: String(localized: "This torrent is already in Harbor.")
-                    )
-                } else if existingItem.finishedAt != nil,
-                          Self.hasExistingTorrentPayload(existingItem) == false {
-                    activeAlert = UserAlert(
-                        title: String(localized: "Torrent Already Added"),
-                        message: String(
-                            localized: "Harbor kept the existing download history, but its completed files could not be found. No duplicate download was started."
-                        )
-                    )
-                }
-                return
-            }
-
-            insertDownload(
-                request,
-                managedTorrentSource: managedSource
-            )
+            _ = try await prepareTorrentDownload(request, isWatchedImport: isWatchedImport)
         } catch {
             activeAlert = UserAlert(
                 title: String(localized: "Couldn’t Import Torrent"),
                 message: error.localizedDescription
             )
         }
+    }
+
+    /// Both entry points use the same preparation and duplicate detection.
+    func queueDownloadAndSave(_ request: AddDownloadRequest) async throws -> UUID {
+        guard canAddDownloads else { throw CLIError("unavailable", "Harbor is not ready to add downloads.") }
+        let item: DownloadItem
+        if request.sourceKind == .torrentFile || request.preparedTorrentMetainfo != nil {
+            item = try await prepareTorrentDownload(request, isWatchedImport: false, showsDuplicateAlert: false)
+        } else {
+            item = insertDownload(request)
+        }
+        try await saveRecordsNow()
+        return item.id
+    }
+
+    private func prepareTorrentDownload(
+        _ request: AddDownloadRequest,
+        isWatchedImport: Bool,
+        showsDuplicateAlert: Bool = true
+    ) async throws -> DownloadItem {
+        let managedSource: ManagedTorrentSource
+        if let preparedTorrentMetainfo = request.preparedTorrentMetainfo {
+            _ = try TorrentMetainfoParser.preview(from: preparedTorrentMetainfo)
+            if request.sourceKind == .magnetLink {
+                guard let expectedInfoHash = ManagedTorrentSourceStore.normalizedInfoHash(
+                    MagnetLinkMetadata(url: request.sourceURL).infoHash
+                ) else {
+                    throw TorrentMetainfoError.malformed
+                }
+                let actualInfoHash = ManagedTorrentSourceStore.fingerprint(for: preparedTorrentMetainfo)
+                guard actualInfoHash == expectedInfoHash else {
+                    throw TorrentMetainfoError.malformed
+                }
+            }
+            managedSource = try await managedTorrentSourceStore.prepareTorrentData(
+                preparedTorrentMetainfo,
+                originalURL: request.sourceURL
+            )
+        } else if request.sourceURL.isFileURL {
+            managedSource = try await managedTorrentSourceStore.prepareLocalTorrent(
+                at: request.sourceURL,
+                originalURL: request.sourceURL
+            )
+        } else {
+            managedSource = try await managedTorrentSourceStore.fetchRemoteTorrent(
+                from: request.sourceURL,
+                requestHeaders: request.requestHeaders,
+                proxySettings: settings.proxySettings
+            )
+        }
+
+        await backfillLegacyTorrentFingerprints()
+        guard isShuttingDown == false else {
+            throw CLIError("unavailable", "Harbor is shutting down.")
+        }
+
+        if let existingItem = downloads.first(where: {
+            Self.torrentIdentity(for: $0) == managedSource.fingerprint
+                || ($0.torrentFingerprint == nil
+                    && $0.sourceURL.isFileURL
+                    && $0.sourceURL.standardizedFileURL == request.sourceURL.standardizedFileURL)
+        }) {
+            if isWatchedImport == false && showsDuplicateAlert {
+                selectDownload(existingItem.id)
+                activeAlert = UserAlert(
+                    title: String(localized: "Torrent Already Added"),
+                    message: String(localized: "This torrent is already in Harbor.")
+                )
+            } else if existingItem.finishedAt != nil,
+                      Self.hasExistingTorrentPayload(existingItem) == false {
+                activeAlert = UserAlert(
+                    title: String(localized: "Torrent Already Added"),
+                    message: String(
+                        localized: "Harbor kept the existing download history, but its completed files could not be found. No duplicate download was started."
+                    )
+                )
+            }
+            return existingItem
+        }
+
+        return insertDownload(
+            request,
+            managedTorrentSource: managedSource
+        )
     }
 
     private func backfillLegacyTorrentFingerprints() async {

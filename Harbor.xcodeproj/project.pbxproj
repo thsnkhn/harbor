@@ -389,7 +389,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "set -eu\n/bin/sh \"${PROJECT_DIR}/Scripts/copy-vendored-runtimes.sh\"\n";
+			shellScript = "set -eu\n/bin/sh \"${PROJECT_DIR}/Scripts/copy-vendored-runtimes.sh\"\n/bin/sh \"${PROJECT_DIR}/Scripts/build-cli.sh\"\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 

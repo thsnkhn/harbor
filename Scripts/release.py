@@ -129,7 +129,7 @@ def verify_app(app, architecture, build, project):
     for key, value in expected.items():
         if info.get(key) != value:
             raise RuntimeError(f"The built app has an unexpected {key}.")
-    for executable in (app / "Contents/MacOS/Harbor", app / "Contents/PlugIns/HarborSafariExtension.appex/Contents/MacOS/HarborSafariExtension"):
+    for executable in (app / "Contents/MacOS/Harbor", app / "Contents/Helpers/harbor", app / "Contents/PlugIns/HarborSafariExtension.appex/Contents/MacOS/HarborSafariExtension"):
         if run("lipo", "-archs", executable, capture=True) != architecture:
             raise RuntimeError(f"Incorrect processor in {executable.name}.")
     for runtime in ("TorrentRuntime", "MediaRuntime", "VPNRuntime"):
@@ -156,6 +156,9 @@ def verify_app(app, architecture, build, project):
     run("codesign", "--verify", "--strict", "-R",
         '=anchor apple generic and certificate leaf[subject.OU] = "2837P98423"',
         media_helper)
+    run("codesign", "--verify", "--strict", "-R",
+        '=anchor apple generic and certificate leaf[subject.OU] = "2837P98423"',
+        app / "Contents/Helpers/harbor")
     return info
 
 

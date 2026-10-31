@@ -33,6 +33,8 @@ struct GeneralSettingsTab: View {
                 }
             }
 
+            CommandLineSettingsSection(settings: settings)
+
             Section("Software Update") {
                 LabeledContent("Current Version") {
                     Text(updater.currentVersionLabel)

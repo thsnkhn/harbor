@@ -139,6 +139,14 @@ final class AppSettingsStore {
     static let incomingPortRange = 1_024 ... 65_535
 
     private let userDefaults: UserDefaults
+    var cliAccessEnabled: Bool {
+        didSet {
+            userDefaults.set(cliAccessEnabled, forKey: "cliAccessEnabled")
+            cliAccessDidChange?()
+        }
+    }
+    @ObservationIgnored var cliAccessDidChange: (() -> Void)?
+    var cliStatus: String? = nil
     var appearance: AppAppearance {
         didSet { userDefaults.set(appearance.rawValue, forKey: Keys.appearance) }
     }
@@ -460,6 +468,7 @@ final class AppSettingsStore {
         networkBindingCatalog: (any NetworkBindingCataloging)? = nil
     ) {
         self.userDefaults = userDefaults
+        self.cliAccessEnabled = userDefaults.bool(forKey: "cliAccessEnabled")
         self.appearance = userDefaults.string(forKey: Keys.appearance)
             .flatMap(AppAppearance.init(rawValue:)) ?? .system
         self.manifestImportEnabled = userDefaults.bool(forKey: Keys.manifestImportEnabled)

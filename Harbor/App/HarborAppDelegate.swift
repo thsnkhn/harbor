@@ -3,6 +3,7 @@ import AppKit
 @MainActor
 final class HarborAppDelegate: NSObject, NSApplicationDelegate {
     weak var center: DownloadCenter?
+    var startServices: (() -> Void)?
     let dockProgress = DockDownloadProgress()
     private var isTerminating = false
 
@@ -11,6 +12,7 @@ final class HarborAppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        if !HarborApplicationSupport.isRunningUnitTests { startServices?() }
         guard HarborTestRuntime.isUITesting else { return }
 
         DispatchQueue.main.async {

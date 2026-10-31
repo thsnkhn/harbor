@@ -202,3 +202,10 @@ Feature requests and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTI
 ## License
 
 Harbor is licensed under [GPL-3.0](https://github.com/thsnkhn/harbor/blob/main/LICENSE).
+
+## Command line and agents
+
+Manage Harbor downloads from a terminal or coding agent. In Settings > General,
+install the command, enable CLI access, and install the Harbor skill into the
+detected agent folders. See the [CLI guide](docs/cli.md) for commands, private
+input, and installation details.
