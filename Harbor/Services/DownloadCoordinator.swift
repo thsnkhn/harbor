@@ -16,6 +16,12 @@ private struct DirectDownloadBodyOverflowError: LocalizedError {
     }
 }
 
+private struct DirectDownloadSegmentsAbandonedError: LocalizedError {
+    var errorDescription: String? {
+        "Harbor stopped using extra connections for this download."
+    }
+}
+
 struct DirectDownloadFailure: Sendable {
     let message: String
     let urlErrorCode: URLError.Code?
@@ -63,6 +69,7 @@ struct DirectDownloadFailure: Sendable {
             || error is DirectDownloadRangeOverflowError
             || error is DirectDownloadBodyOverflowError
             || error is HTTPDownloadInvalidRangeResponseError
+            || error is DirectDownloadSegmentsAbandonedError
         self.freshStartOverride = forcesFreshStart
             || error is DirectDownloadRecoveryRestartError
     }
@@ -223,6 +230,18 @@ final class DownloadCoordinator: NSObject, @unchecked Sendable {
         var waiters: [CheckedContinuation<DirectDownloadPauseResult, Never>] = []
     }
 
+    /// A ranged request that fetches `start..<end` into its own segment file
+    /// while the primary task fills the contiguous partial file.
+    private struct SegmentTransfer {
+        let index: Int
+        let start: Int64
+        let end: Int64
+        let task: URLSessionDataTask
+        var bytesWritten: Int64 = 0
+        var fileHandle: FileHandle?
+        var isComplete = false
+    }
+
     private struct TaskContext: @unchecked Sendable {
         let downloadID: UUID
         let attemptIdentifier: UUID
@@ -236,6 +255,15 @@ final class DownloadCoordinator: NSObject, @unchecked Sendable {
         var transferSample: TransferSample
         var isThrottled = false
         var throttleGeneration: UInt64 = 0
+        /// Pending segments in byte order. The primary task stops at
+        /// `primarySegmentEnd`, then segments are appended as they complete.
+        var segments: [SegmentTransfer] = []
+        var primarySegmentEnd: Int64?
+        var primaryFinished = false
+
+        var segmentBytes: Int64 {
+            segments.reduce(0) { $0 + $1.bytesWritten }
+        }
     }
 
     private let eventHandler: EventHandler
@@ -260,9 +288,13 @@ final class DownloadCoordinator: NSObject, @unchecked Sendable {
     private var completedPublicationPauseResults: [UUID: DirectDownloadPauseResult] = [:]
     private var transferSettings: DownloadTransferSettings
     private var proxySettings: NetworkProxySettings
+    private var segmentOwnerKeys: [TaskKey: TaskKey] = [:]
+    private var singleConnectionDownloadIDs: Set<UUID> = []
+    private let minimumSegmentBytes: Int64
 
     init(
         transferSettings: DownloadTransferSettings = .default,
+        minimumSegmentBytes: Int64 = 4 * 1024 * 1024,
         eventHandler: @escaping EventHandler,
         fileManager: FileManager = .default,
         recoveryDirectoryURL: URL? = nil,
@@ -275,6 +307,7 @@ final class DownloadCoordinator: NSObject, @unchecked Sendable {
         self.eventHandler = eventHandler
         self.fileManager = fileManager
         self.transferSettings = transferSettings
+        self.minimumSegmentBytes = minimumSegmentBytes
         self.proxySettings = proxySettings
         self.ownedTemporaryDirectory = temporaryDirectory
             ?? fileManager.temporaryDirectory
@@ -312,6 +345,7 @@ final class DownloadCoordinator: NSObject, @unchecked Sendable {
             return releaseThrottledTasksLocked()
         }
         tasksToResume.forEach { $0.resume() }
+        abandonSegmentsUnderSpeedLimit()
     }
 
     func updateProxySettings(_ proxySettings: NetworkProxySettings) {
@@ -341,6 +375,7 @@ final class DownloadCoordinator: NSObject, @unchecked Sendable {
             return tasks
         }
         tasksToResume.forEach { $0.resume() }
+        abandonSegmentsUnderSpeedLimit()
     }
 
     @discardableResult
@@ -869,6 +904,7 @@ final class DownloadCoordinator: NSObject, @unchecked Sendable {
         in context: TaskContext,
         preservingRecovery: Bool
     ) -> Bool {
+        cancelSegments(in: context)
         guard let fileHandle = context.state.fileHandle else {
             return true
         }
@@ -889,6 +925,7 @@ final class DownloadCoordinator: NSObject, @unchecked Sendable {
     }
 
     private func sealOwnedFile(in context: TaskContext) throws {
+        cancelSegments(in: context)
         guard let fileHandle = context.state.fileHandle else {
             return
         }
@@ -1102,6 +1139,407 @@ final class DownloadCoordinator: NSObject, @unchecked Sendable {
         return tasks
     }
 
+    /// Splits `start..<total` into at most `connectionCount` ranges of at least
+    /// `minimumSegmentBytes`. Returns the boundaries, or an empty array when a
+    /// single connection should fetch the rest.
+    nonisolated static func segmentBoundaries(
+        from start: Int64,
+        to total: Int64,
+        connectionCount: Int,
+        minimumSegmentBytes: Int64
+    ) -> [Int64] {
+        let remaining = total - start
+        let segmentCount = min(Int64(connectionCount), remaining / max(minimumSegmentBytes, 1))
+        guard segmentCount > 1 else {
+            return []
+        }
+        let segmentLength = remaining / segmentCount
+        return (0 ... segmentCount).map { index in
+            index == segmentCount ? total : start + index * segmentLength
+        }
+    }
+
+    private func ifRangeValidator(for state: OwnedPartialState) -> String? {
+        DirectDownloadRecoveryMetadata(
+            sourceURL: state.sourceURL,
+            entityTag: state.entityTag,
+            lastModified: state.lastModified,
+            expectedBytes: state.expectedBytes,
+            suggestedFilename: state.suggestedFilename,
+            mimeType: state.responseMimeType
+        ).ifRangeValidator
+    }
+
+    private func startSegmentsIfUseful(
+        primaryKey: TaskKey,
+        response: HTTPURLResponse,
+        request: URLRequest?
+    ) {
+        let acceptsRanges = response.statusCode == 206
+            || response.value(forHTTPHeaderField: "Accept-Ranges")?
+                .lowercased().contains("bytes") == true
+        guard acceptsRanges, let request else {
+            return
+        }
+
+        let segmentTasks = stateLock.withLock { () -> [URLSessionDataTask] in
+            guard transferSettings.splitsDirectDownloads,
+                  var context = contexts[primaryKey],
+                  singleConnectionDownloadIDs.contains(context.downloadID) == false,
+                  let total = context.state.declaredExpectedBytes,
+                  Self.effectiveSpeedLimit(
+                      activeTransferCount: contexts.count,
+                      transferSettings: transferSettings,
+                      speedLimitOverride: context.speedLimitOverride
+                  ) == nil else {
+                return []
+            }
+            let boundaries = Self.segmentBoundaries(
+                from: context.state.bytesWritten,
+                to: total,
+                connectionCount: transferSettings.perDownloadConnectionCount,
+                minimumSegmentBytes: minimumSegmentBytes
+            )
+            guard boundaries.isEmpty == false else {
+                return []
+            }
+
+            let validator = ifRangeValidator(for: context.state)
+            for index in 1 ..< boundaries.count - 1 {
+                var segmentRequest = request
+                segmentRequest.setValue(
+                    "bytes=\(boundaries[index])-\(boundaries[index + 1] - 1)",
+                    forHTTPHeaderField: "Range"
+                )
+                segmentRequest.setValue(validator, forHTTPHeaderField: "If-Range")
+                let task = context.session.dataTask(with: segmentRequest)
+                context.segments.append(
+                    SegmentTransfer(
+                        index: index,
+                        start: boundaries[index],
+                        end: boundaries[index + 1],
+                        task: task
+                    )
+                )
+                let segmentKey = makeTaskKey(
+                    session: context.session,
+                    taskIdentifier: task.taskIdentifier
+                )
+                segmentOwnerKeys[segmentKey] = primaryKey
+            }
+            context.primarySegmentEnd = boundaries[1]
+            contexts[primaryKey] = context
+            return context.segments.map(\.task)
+        }
+        segmentTasks.forEach { $0.resume() }
+    }
+
+    private func cancelSegments(in context: TaskContext) {
+        guard context.segments.isEmpty == false else {
+            return
+        }
+        for segment in context.segments {
+            segment.task.cancel()
+            try? segment.fileHandle?.close()
+        }
+        recoveryStore.discardSegments(id: context.downloadID)
+    }
+
+    /// Drops the extra connections and lets one connection fetch the rest.
+    /// A primary task that already stopped at its boundary cannot continue,
+    /// so the attempt fails with its contiguous bytes preserved for a resume.
+    private func abandonSegments(primaryKey: TaskKey) {
+        let abandoned = stateLock.withLock { () -> (context: TaskContext, primaryFinished: Bool)? in
+            guard var context = contexts[primaryKey],
+                  context.segments.isEmpty == false else {
+                return nil
+            }
+            singleConnectionDownloadIDs.insert(context.downloadID)
+            let abandonedContext = context
+            context.segments = []
+            context.primarySegmentEnd = nil
+            contexts[primaryKey] = context
+            return (abandonedContext, context.primaryFinished)
+        }
+        guard let abandoned else {
+            return
+        }
+
+        cancelSegments(in: abandoned.context)
+        if abandoned.primaryFinished {
+            failPrimary(taskKey: primaryKey, error: DirectDownloadSegmentsAbandonedError())
+        }
+    }
+
+    private func abandonSegmentsUnderSpeedLimit() {
+        let limitedKeys = stateLock.withLock {
+            contexts.compactMap { taskKey, context -> TaskKey? in
+                guard context.segments.isEmpty == false,
+                      Self.effectiveSpeedLimit(
+                          activeTransferCount: contexts.count,
+                          transferSettings: transferSettings,
+                          speedLimitOverride: context.speedLimitOverride
+                      ) != nil else {
+                    return nil
+                }
+                return taskKey
+            }
+        }
+        limitedKeys.forEach { abandonSegments(primaryKey: $0) }
+    }
+
+    /// Appends finished segments to the partial file in byte order so the
+    /// recovery data stays a contiguous prefix of the representation.
+    private func mergeCompletedSegments(primaryKey: TaskKey) {
+        var mergeError: Error?
+        var isComplete = false
+        guard let context = updateContext(for: primaryKey, { context in
+            guard context.primaryFinished,
+                  let fileHandle = context.state.fileHandle else {
+                return
+            }
+            while let segment = context.segments.first, segment.isComplete {
+                do {
+                    try recoveryStore.appendSegment(
+                        id: context.downloadID,
+                        index: segment.index,
+                        expectedBytes: segment.end - segment.start,
+                        to: fileHandle
+                    )
+                } catch {
+                    mergeError = error
+                    return
+                }
+                context.state.bytesWritten = segment.end
+                context.segments.removeFirst()
+            }
+            isComplete = context.segments.isEmpty
+        }) else {
+            return
+        }
+
+        if let mergeError {
+            failPrimary(taskKey: primaryKey, error: mergeError)
+        } else if isComplete,
+                  let completedContext = beginCompletionPublication(forTaskKey: primaryKey) {
+            publishCompletion(context: completedContext)
+        } else {
+            eventHandler(
+                .progress(
+                    id: context.downloadID,
+                    attemptIdentifier: context.attemptIdentifier,
+                    bytesWritten: context.state.bytesWritten + context.segmentBytes,
+                    expectedBytes: context.state.expectedBytes,
+                    speedBytesPerSecond: context.transferSample.speedBytesPerSecond
+                )
+            )
+        }
+    }
+
+    /// Updates the speed sample. Call with `stateLock` held.
+    private func sampleTransferLocked(
+        _ transferSample: inout TransferSample,
+        totalBytes: Int64,
+        speedLimitOverride: TransferLimitOverride
+    ) -> TimeInterval? {
+        let now = Date()
+        let elapsed = now.timeIntervalSince(transferSample.sampleDate)
+        guard elapsed >= 0.35 else {
+            return nil
+        }
+        let deltaBytes = totalBytes - transferSample.lastTotalBytesWritten
+        transferSample = TransferSample(
+            lastTotalBytesWritten: totalBytes,
+            sampleDate: now,
+            speedBytesPerSecond: Double(deltaBytes) / elapsed
+        )
+        return Self.throttleDelay(
+            deltaBytes: deltaBytes,
+            elapsed: elapsed,
+            activeTransferCount: contexts.count,
+            transferSettings: transferSettings,
+            speedLimitOverride: speedLimitOverride
+        )
+    }
+
+    private func segmentOwnerKey(for taskKey: TaskKey) -> TaskKey? {
+        stateLock.withLock {
+            segmentOwnerKeys[taskKey]
+        }
+    }
+
+    private func segmentResponseMatches(
+        _ response: URLResponse,
+        segment: SegmentTransfer,
+        state: OwnedPartialState
+    ) -> Bool {
+        guard let httpResponse = response as? HTTPURLResponse,
+              httpResponse.statusCode == 206,
+              let range = try? DownloadHTTPResponseValidator.validatedPartialContentRange(httpResponse),
+              range.start == segment.start,
+              range.end == segment.end - 1,
+              range.total == state.declaredExpectedBytes else {
+            return false
+        }
+        guard let validator = ifRangeValidator(for: state) else {
+            return true
+        }
+        return DownloadHTTPResponseValidator.responseValidator(httpResponse, matching: validator)
+    }
+
+    private func receiveSegmentResponse(
+        _ response: URLResponse,
+        taskIdentifier: Int,
+        primaryKey: TaskKey
+    ) -> Bool {
+        var accepted = false
+        _ = updateContext(for: primaryKey) { context in
+            guard let index = context.segments.firstIndex(where: {
+                $0.task.taskIdentifier == taskIdentifier
+            }),
+                segmentResponseMatches(
+                    response,
+                    segment: context.segments[index],
+                    state: context.state
+                ),
+                let fileHandle = try? recoveryStore.openFreshSegmentFile(
+                    id: context.downloadID,
+                    index: context.segments[index].index
+                ) else {
+                return
+            }
+            context.segments[index].fileHandle = fileHandle
+            accepted = true
+        }
+        if accepted == false {
+            abandonSegments(primaryKey: primaryKey)
+        }
+        return accepted
+    }
+
+    private func receiveSegmentData(
+        _ data: Data,
+        taskIdentifier: Int,
+        primaryKey: TaskKey
+    ) {
+        var failed = false
+        var progress: (bytesWritten: Int64, speed: Double)?
+        guard let context = updateContext(for: primaryKey, { context in
+            guard let index = context.segments.firstIndex(where: {
+                $0.task.taskIdentifier == taskIdentifier
+            }) else {
+                return
+            }
+            let segment = context.segments[index]
+            let receivedByteCount = Int64(data.count)
+            guard let fileHandle = segment.fileHandle,
+                  segment.bytesWritten + receivedByteCount <= segment.end - segment.start,
+                  (try? fileHandle.write(contentsOf: data)) != nil else {
+                failed = true
+                return
+            }
+            context.segments[index].bytesWritten += receivedByteCount
+            _ = sampleTransferLocked(
+                &context.transferSample,
+                totalBytes: context.state.bytesWritten + context.segmentBytes,
+                speedLimitOverride: context.speedLimitOverride
+            )
+            progress = (
+                context.state.bytesWritten + context.segmentBytes,
+                context.transferSample.speedBytesPerSecond
+            )
+        }) else {
+            return
+        }
+
+        if failed {
+            abandonSegments(primaryKey: primaryKey)
+        } else if let progress {
+            eventHandler(
+                .progress(
+                    id: context.downloadID,
+                    attemptIdentifier: context.attemptIdentifier,
+                    bytesWritten: progress.bytesWritten,
+                    expectedBytes: context.state.expectedBytes,
+                    speedBytesPerSecond: progress.speed
+                )
+            )
+        }
+    }
+
+    private func completeSegment(
+        taskKey: TaskKey,
+        taskIdentifier: Int,
+        primaryKey: TaskKey,
+        error: Error?
+    ) {
+        var succeeded = false
+        _ = stateLock.withLock {
+            segmentOwnerKeys.removeValue(forKey: taskKey)
+        }
+        _ = updateContext(for: primaryKey) { context in
+            guard error == nil,
+                  let index = context.segments.firstIndex(where: {
+                      $0.task.taskIdentifier == taskIdentifier
+                  }) else {
+                return
+            }
+            let segment = context.segments[index]
+            guard let fileHandle = segment.fileHandle,
+                  segment.bytesWritten == segment.end - segment.start,
+                  (try? fileHandle.synchronize()) != nil,
+                  (try? fileHandle.close()) != nil else {
+                return
+            }
+            context.segments[index].fileHandle = nil
+            context.segments[index].isComplete = true
+            succeeded = true
+        }
+        if succeeded {
+            mergeCompletedSegments(primaryKey: primaryKey)
+        } else {
+            abandonSegments(primaryKey: primaryKey)
+        }
+    }
+
+    private func failPrimary(taskKey: TaskKey, error: Error) {
+        guard let failedContext = beginCompletionPublication(forTaskKey: taskKey) else {
+            return
+        }
+        _ = stateLock.withLock {
+            suppressedCompletionTaskKeys.insert(taskKey)
+        }
+        let didPreserveRecovery = closeOwnedFile(
+            in: failedContext,
+            preservingRecovery: true
+        )
+        let pauseResult = ownedPauseResult(
+            for: failedContext,
+            didPreserveRecovery: didPreserveRecovery
+        )
+        failedContext.task.cancel()
+        failedContext.session.finishTasksAndInvalidate()
+        eventHandler(
+            .failed(
+                id: failedContext.downloadID,
+                attemptIdentifier: failedContext.attemptIdentifier,
+                failure: DirectDownloadFailure(
+                    error: error,
+                    resumeData: nil,
+                    wasResuming: failedContext.state.resumeOffset > 0,
+                    recoverableBytes: didPreserveRecovery
+                        ? recoverableOwnedByteCount(in: failedContext)
+                        : 0
+                )
+            )
+        )
+        finishCompletionPublication(
+            context: failedContext,
+            ownedRecovery: pauseResult.ownedRecovery,
+            recoveryUnavailableMessage: pauseResult.recoveryUnavailableMessage
+        )
+    }
+
     private func fileSize(at url: URL) throws -> Int64 {
         let values = try url.resourceValues(
             forKeys: [.fileSizeKey, .isRegularFileKey, .isSymbolicLinkKey]
@@ -1125,6 +1563,15 @@ extension DownloadCoordinator: URLSessionDataDelegate {
         completionHandler: @escaping (URLSession.ResponseDisposition) -> Void
     ) {
         let taskKey = makeTaskKey(session: session, taskIdentifier: dataTask.taskIdentifier)
+        if let primaryKey = segmentOwnerKey(for: taskKey) {
+            let accepted = receiveSegmentResponse(
+                response,
+                taskIdentifier: dataTask.taskIdentifier,
+                primaryKey: primaryKey
+            )
+            completionHandler(accepted ? .allow : .cancel)
+            return
+        }
         guard let handledResponse = mutateContext(for: taskKey, { context in
             var state = context.state
             defer { context.state = state }
@@ -1298,6 +1745,13 @@ extension DownloadCoordinator: URLSessionDataDelegate {
                     )
                 )
             }
+            if let httpResponse = response as? HTTPURLResponse {
+                startSegmentsIfUseful(
+                    primaryKey: taskKey,
+                    response: httpResponse,
+                    request: dataTask.currentRequest
+                )
+            }
             completionHandler(.allow)
         }
     }
@@ -1308,8 +1762,13 @@ extension DownloadCoordinator: URLSessionDataDelegate {
         didReceive data: Data
     ) {
         let taskKey = makeTaskKey(session: session, taskIdentifier: dataTask.taskIdentifier)
+        if let primaryKey = segmentOwnerKey(for: taskKey) {
+            receiveSegmentData(data, taskIdentifier: dataTask.taskIdentifier, primaryKey: primaryKey)
+            return
+        }
         var writeError: Error?
         var throttleDelay: TimeInterval?
+        var reachedSegmentEnd = false
         var progress: (
             id: UUID,
             attemptIdentifier: UUID,
@@ -1319,6 +1778,10 @@ extension DownloadCoordinator: URLSessionDataDelegate {
         )?
 
         guard let context = updateContext(for: taskKey, { context in
+            // Data already queued when the primary stopped at its boundary.
+            guard context.primaryFinished == false else {
+                return
+            }
             var state = context.state
             defer { context.state = state }
             guard let fileHandle = state.fileHandle else {
@@ -1328,6 +1791,16 @@ extension DownloadCoordinator: URLSessionDataDelegate {
 
             do {
                 let receivedByteCount = Int64(data.count)
+                if let segmentEnd = context.primarySegmentEnd,
+                   state.bytesWritten + receivedByteCount >= segmentEnd {
+                    try fileHandle.write(
+                        contentsOf: Data(data.prefix(Int(segmentEnd - state.bytesWritten)))
+                    )
+                    state.bytesWritten = segmentEnd
+                    context.primaryFinished = true
+                    reachedSegmentEnd = true
+                    return
+                }
                 if receivedByteCount > 0 {
                     let rangeLimit = state.responseRangeEnd.flatMap { end in
                         end == Int64.max ? nil : end + 1
@@ -1372,31 +1845,16 @@ extension DownloadCoordinator: URLSessionDataDelegate {
                 try fileHandle.write(contentsOf: data)
                 state.bytesWritten += receivedByteCount
 
-                let now = Date()
-                let elapsed = now.timeIntervalSince(context.transferSample.sampleDate)
-                if elapsed >= 0.35 {
-                    let deltaBytes = state.bytesWritten - context.transferSample.lastTotalBytesWritten
-                    let speed = elapsed > 0
-                        ? Double(deltaBytes) / elapsed
-                        : context.transferSample.speedBytesPerSecond
-                    throttleDelay = Self.throttleDelay(
-                        deltaBytes: deltaBytes,
-                        elapsed: elapsed,
-                        activeTransferCount: contexts.count,
-                        transferSettings: transferSettings,
-                        speedLimitOverride: context.speedLimitOverride
-                    )
-                    context.transferSample = TransferSample(
-                        lastTotalBytesWritten: state.bytesWritten,
-                        sampleDate: now,
-                        speedBytesPerSecond: speed
-                    )
-                }
+                throttleDelay = sampleTransferLocked(
+                    &context.transferSample,
+                    totalBytes: state.bytesWritten + context.segmentBytes,
+                    speedLimitOverride: context.speedLimitOverride
+                )
 
                 progress = (
                     id: context.downloadID,
                     attemptIdentifier: context.attemptIdentifier,
-                    bytesWritten: state.bytesWritten,
+                    bytesWritten: state.bytesWritten + context.segmentBytes,
                     expectedBytes: state.expectedBytes,
                     speed: context.transferSample.speedBytesPerSecond
                 )
@@ -1408,41 +1866,18 @@ extension DownloadCoordinator: URLSessionDataDelegate {
         }
 
         if let writeError {
-            guard let failedContext = beginCompletionPublication(forTaskKey: taskKey) else {
-                return
-            }
+            failPrimary(taskKey: taskKey, error: writeError)
+            return
+        }
+
+        if reachedSegmentEnd {
+            // The segments own the remaining bytes. Stop this transfer without
+            // treating its cancellation as a failure.
             _ = stateLock.withLock {
                 suppressedCompletionTaskKeys.insert(taskKey)
             }
-            let didPreserveRecovery = closeOwnedFile(
-                in: failedContext,
-                preservingRecovery: true
-            )
-            let pauseResult = ownedPauseResult(
-                for: failedContext,
-                didPreserveRecovery: didPreserveRecovery
-            )
-            failedContext.task.cancel()
-            failedContext.session.finishTasksAndInvalidate()
-            eventHandler(
-                .failed(
-                    id: failedContext.downloadID,
-                    attemptIdentifier: failedContext.attemptIdentifier,
-                    failure: DirectDownloadFailure(
-                        error: writeError,
-                        resumeData: nil,
-                        wasResuming: failedContext.state.resumeOffset > 0,
-                        recoverableBytes: didPreserveRecovery
-                            ? recoverableOwnedByteCount(in: failedContext)
-                            : 0
-                    )
-                )
-            )
-            finishCompletionPublication(
-                context: failedContext,
-                ownedRecovery: pauseResult.ownedRecovery,
-                recoveryUnavailableMessage: pauseResult.recoveryUnavailableMessage
-            )
+            dataTask.cancel()
+            mergeCompletedSegments(primaryKey: taskKey)
             return
         }
 
@@ -1510,6 +1945,15 @@ extension DownloadCoordinator: URLSessionDataDelegate {
         didCompleteWithError error: Error?
     ) {
         let taskKey = makeTaskKey(session: session, taskIdentifier: task.taskIdentifier)
+        if let primaryKey = segmentOwnerKey(for: taskKey) {
+            completeSegment(
+                taskKey: taskKey,
+                taskIdentifier: task.taskIdentifier,
+                primaryKey: primaryKey,
+                error: error
+            )
+            return
+        }
         if let error {
             let nsError = error as NSError
             if shouldIgnoreCompletion(taskKey: taskKey) {
@@ -1555,6 +1999,10 @@ extension DownloadCoordinator: URLSessionDataDelegate {
         guard let context = beginCompletionPublication(forTaskKey: taskKey) else {
             return
         }
+        publishCompletion(context: context)
+    }
+
+    private func publishCompletion(context: TaskContext) {
         let state = context.state
 
         do {
