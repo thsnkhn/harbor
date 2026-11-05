@@ -173,6 +173,25 @@ final class AppSettingsAndTorrentWatchTests: XCTestCase {
         XCTAssertFalse(restored.seedNewTorrents)
     }
 
+    func testSplitDirectDownloadsDefaultsOffAndPersistsAcrossTrafficModes() {
+        let suiteName = "HarborTests.SplitDirectDownloads.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let settings = AppSettingsStore(userDefaults: defaults)
+        XCTAssertFalse(settings.splitsDirectDownloads)
+        XCTAssertFalse(settings.transferSettings.splitsDirectDownloads)
+
+        var observed: DownloadTransferSettings?
+        settings.transferSettingsDidChange = { observed = $0 }
+        settings.splitsDirectDownloads = true
+        XCTAssertEqual(observed?.splitsDirectDownloads, true)
+        for mode in TrafficMode.allCases {
+            settings.trafficMode = mode
+            XCTAssertTrue(settings.transferSettings.splitsDirectDownloads)
+        }
+        XCTAssertTrue(AppSettingsStore(userDefaults: defaults).splitsDirectDownloads)
+    }
+
     func testSeedingRatioLimitDefaultsOffAndPersists() {
         let suiteName = "HarborTests.SeedingRatio.\(UUID().uuidString)"
         let userDefaults = UserDefaults(suiteName: suiteName)!
