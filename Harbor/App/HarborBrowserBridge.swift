@@ -10,18 +10,12 @@ enum HarborBrowserBridge {
     ]
 
     static func registerIfNeeded() {
-        guard let hostURL = Bundle.main.url(forResource: "host", withExtension: "py") else {
-            
-            return
-        }
+        guard let hostURL = Bundle.main.url(forResource: "host", withExtension: "rb") else { return }
         let host = hostURL.path
         if !FileManager.default.isExecutableFile(atPath: host) {
             try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: host)
         }
-        guard FileManager.default.isExecutableFile(atPath: host) else {
-            
-            return
-        }
+        guard FileManager.default.isExecutableFile(atPath: host) else { return }
 
         let support = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Library/Application Support")
@@ -59,6 +53,5 @@ enum HarborBrowserBridge {
         try? FileManager.default.createDirectory(
             at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         try? data.write(to: url, options: .atomic)
-        
     }
 }
