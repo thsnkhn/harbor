@@ -10401,6 +10401,34 @@
         }
       }
     },
+    "Splits large direct downloads across connections when the server supports it. Some servers limit or block multiple connections." : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Divide las descargas directas grandes entre varias conexiones cuando el servidor lo permite. Algunos servidores limitan o bloquean las conexiones múltiples."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Divide i download diretti di grandi dimensioni su più connessioni quando il server lo consente. Alcuni server limitano o bloccano le connessioni multiple."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Разделяет большие прямые загрузки на несколько соединений, если сервер это поддерживает. Некоторые серверы ограничивают или блокируют множественные соединения."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "服务器支持时，将大型直接下载拆分到多个连接。部分服务器会限制或阻止多个连接。"
+          }
+        }
+      }
+    },
     "Start at Login" : {
       "localizations" : {
         "es" : {
@@ -12613,6 +12641,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Использовать общие"
+          }
+        }
+      }
+    },
+    "Use Multiple Connections for Direct Downloads" : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usar varias conexiones en descargas directas"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usa più connessioni per i download diretti"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Использовать несколько соединений для прямых загрузок"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "直接下载使用多个连接"
           }
         }
       }

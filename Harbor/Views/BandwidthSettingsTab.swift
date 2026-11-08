@@ -52,13 +52,18 @@ struct BandwidthSettingsTab: View {
                 }
             }
 
-            Section("Connections") {
+            Section {
                 Stepper(
                     value: $settings.perDownloadConnectionCount,
                     in: AppSettingsStore.perDownloadConnectionCountRange
                 ) {
                     LabeledContent("Connections per Download", value: "\(settings.perDownloadConnectionCount)")
                 }
+                Toggle("Use Multiple Connections for Direct Downloads", isOn: $settings.splitsDirectDownloads)
+            } header: {
+                Text("Connections")
+            } footer: {
+                Text("Splits large direct downloads across connections when the server supports it. Some servers limit or block multiple connections.")
             }
         }
         .formStyle(.grouped)

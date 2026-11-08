@@ -279,6 +279,48 @@ final class DirectDownloadRecoveryStore: @unchecked Sendable {
         }
     }
 
+    /// Segment files hold byte ranges fetched ahead of the contiguous partial.
+    /// They never count as recovery data; only `appendSegment` moves their
+    /// bytes into the partial file, in order.
+    func openFreshSegmentFile(id: UUID, index: Int) throws -> FileHandle {
+        try lock.withLock {
+            try storageLocations?.requireAvailable(id: id)
+            let segmentURL = segmentURL(for: id, index: index)
+            try removeItemIfPresent(at: segmentURL)
+            guard fileManager.createFile(atPath: segmentURL.path, contents: nil) else {
+                throw CocoaError(.fileWriteUnknown)
+            }
+            return try FileHandle(forWritingTo: segmentURL)
+        }
+    }
+
+    func appendSegment(
+        id: UUID,
+        index: Int,
+        expectedBytes: Int64,
+        to partialHandle: FileHandle
+    ) throws {
+        try lock.withLock {
+            let segmentURL = segmentURL(for: id, index: index)
+            guard try fileSizeIfPresent(at: segmentURL) == expectedBytes else {
+                throw CocoaError(.fileReadCorruptFile)
+            }
+            let segmentHandle = try FileHandle(forReadingFrom: segmentURL)
+            defer { try? segmentHandle.close() }
+            while let chunk = try segmentHandle.read(upToCount: 4 * 1024 * 1024),
+                  chunk.isEmpty == false {
+                try partialHandle.write(contentsOf: chunk)
+            }
+            try removeItemIfPresent(at: segmentURL)
+        }
+    }
+
+    func discardSegments(id: UUID) {
+        lock.withLock {
+            try? discardSegmentsLocked(id: id)
+        }
+    }
+
     func saveMetadata(
         _ metadata: DirectDownloadRecoveryMetadata,
         id: UUID
@@ -365,6 +407,12 @@ final class DirectDownloadRecoveryStore: @unchecked Sendable {
         directory(for: id)
             .appendingPathComponent(id.uuidString)
             .appendingPathExtension("json")
+    }
+
+    private func segmentURL(for id: UUID, index: Int) -> URL {
+        directory(for: id)
+            .appendingPathComponent(id.uuidString)
+            .appendingPathExtension("segment-\(index)")
     }
 
     private static func resumeInfo(from data: Data) -> [String: Any]? {
@@ -525,6 +573,18 @@ final class DirectDownloadRecoveryStore: @unchecked Sendable {
         try storageLocations?.requireAvailable(id: id)
         try removeItemIfPresent(at: partialURL(for: id))
         try removeItemIfPresent(at: metadataURL(for: id))
+        try discardSegmentsLocked(id: id)
+    }
+
+    private func discardSegmentsLocked(id: UUID) throws {
+        let segmentPrefix = "\(id.uuidString).segment-"
+        let contents = (try? fileManager.contentsOfDirectory(
+            at: directory(for: id),
+            includingPropertiesForKeys: nil
+        )) ?? []
+        for url in contents where url.lastPathComponent.hasPrefix(segmentPrefix) {
+            try removeItemIfPresent(at: url)
+        }
     }
 
     private func removeItemIfPresent(at url: URL) throws {
