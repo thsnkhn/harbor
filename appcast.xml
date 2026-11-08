@@ -3,6 +3,25 @@
     <channel>
         <title>Harbor</title>
         <item>
+            <title>1.9.1</title>
+            <pubDate>Sun, 08 Nov 2026 16:22:32 +0000</pubDate>
+            <sparkle:version>48.2</sparkle:version>
+            <sparkle:shortVersionString>1.9.1</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.6</sparkle:minimumSystemVersion>
+            <sparkle:releaseNotesLink>https://thsnkhn.github.io/harbor/updates/Harbor-1.9.1.md</sparkle:releaseNotesLink>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <enclosure url="https://github.com/thsnkhn/harbor/releases/download/v1.9.1/Harbor-1.9.1-Apple-Silicon.dmg" length="117768345" type="application/octet-stream" sparkle:edSignature="xdPQ+nTcDWFyKQVeBF2qQUEJMDsAiNUfX7/YrFJZ5wyrmDLPM35J2vF2ISMEff9zkz0Wqb4weHFtAJ5NXkZQAw==" />
+        </item>
+        <item>
+            <title>1.9.1</title>
+            <pubDate>Sun, 08 Nov 2026 16:22:32 +0000</pubDate>
+            <sparkle:version>48.1</sparkle:version>
+            <sparkle:shortVersionString>1.9.1</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.6</sparkle:minimumSystemVersion>
+            <sparkle:releaseNotesLink>https://thsnkhn.github.io/harbor/updates/Harbor-1.9.1.md</sparkle:releaseNotesLink>
+            <enclosure url="https://github.com/thsnkhn/harbor/releases/download/v1.9.1/Harbor-1.9.1-Intel.dmg" length="167007725" type="application/octet-stream" sparkle:edSignature="5oeOW30ODH+aZqdu7x42atxcoMh35GjC+nEteaTXAjZPsh5UHb6Jd2SgcNtC+UQKigoKQm7zfyQp2XL0kLGoBA==" />
+        </item>
+        <item>
             <title>1.9.0</title>
             <pubDate>Sat, 31 Oct 2026 14:43:57 +0000</pubDate>
             <sparkle:version>47.2</sparkle:version>
