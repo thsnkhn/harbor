@@ -4,18 +4,22 @@
     "" : {
       "shouldTranslate" : false
     },
-    "%1$d seeders, %2$d leechers" : {
+    "·" : {
+      "shouldTranslate" : false
+    },
+    "%@ • ETA %@" : {
+      "comment" : "Download progress followed by estimated time remaining",
       "localizations" : {
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%1$d semillas, %2$d pares"
+            "value" : "%1$@ • quedan %2$@"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Сиды: %1$d, личи: %2$d"
+            "value" : "%1$@ • осталось %2$@"
           }
         }
       }
@@ -32,23 +36,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ недоступен; торренты приостановлены"
-          }
-        }
-      }
-    },
-    "%@ • ETA %@" : {
-      "comment" : "Download progress followed by estimated time remaining",
-      "localizations" : {
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$@ • quedan %2$@"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$@ • осталось %2$@"
           }
         }
       }
@@ -84,6 +71,22 @@
         }
       }
     },
+    "%1$d seeders, %2$d leechers" : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$d semillas, %2$d pares"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сиды: %1$d, личи: %2$d"
+          }
+        }
+      }
+    },
     "%d failures" : {
       "localizations" : {
         "es" : {
@@ -96,6 +99,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Сбоев: %d"
+          }
+        }
+      }
+    },
+    "%d trackers" : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%d trackers"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Трекеров: %d"
           }
         }
       }
@@ -194,6 +213,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "1 сбой"
+          }
+        }
+      }
+    },
+    "1 tracker" : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 tracker"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 трекер"
           }
         }
       }
@@ -364,6 +399,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Добавить теги"
+          }
+        }
+      }
+    },
+    "Add to Torrents" : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Añadir a los torrents"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Добавлять в торренты"
+          }
+        }
+      }
+    },
+    "Add Tracker" : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Añadir tracker"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Добавить трекер"
           }
         }
       }
@@ -785,6 +852,22 @@
         }
       }
     },
+    "Added %d trackers." : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se añadieron %d trackers."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Добавлено трекеров: %d."
+          }
+        }
+      }
+    },
     "Added %lld downloads…" : {
       "localizations" : {
         "es" : {
@@ -797,6 +880,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Добавлено загрузок: %lld…"
+          }
+        }
+      }
+    },
+    "Added 1 tracker." : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se añadió 1 tracker."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Добавлен 1 трекер."
           }
         }
       }
@@ -1447,22 +1546,6 @@
         }
       }
     },
-    "Bound to %1$@ (%2$@)" : {
-      "localizations" : {
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Vinculado a %1$@ (%2$@)"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Привязано к %1$@ (%2$@)"
-          }
-        }
-      }
-    },
     "Bound to %@" : {
       "localizations" : {
         "es" : {
@@ -1475,6 +1558,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Привязано к %@"
+          }
+        }
+      }
+    },
+    "Bound to %1$@ (%2$@)" : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vinculado a %1$@ (%2$@)"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Привязано к %1$@ (%2$@)"
           }
         }
       }
@@ -3484,24 +3583,24 @@
       }
     },
     "download.completedHandoff.unavailable" : {
-      "comment" : "Failure shown when a durable completed download package is temporarily inaccessible.",
+      "comment" : "Failure shown when a durable completed download package is temporarily inaccessible.\nFailure shown when the completed-download journal cannot be scanned.",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "Harbor could not verify the completed download: %@"
+            "value" : "Harbor could not verify completed downloads: %@"
           }
         },
         "es" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Harbor no pudo verificar la descarga completada: %@"
           }
         },
         "ru" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Harbor не удалось проверить завершённую загрузку: %@"
           }
         }
@@ -3682,18 +3781,18 @@
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "The server rejected the saved resume state. Retrying from the beginning in %lld seconds (%lld of %lld)."
+            "value" : "The server rejected the saved resume state. Retrying from the beginning in %1$lld seconds (%2$lld of %3$lld)."
           }
         },
         "es" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "El servidor rechazó el estado de reanudación guardado. Reintentando desde el principio en %1$lld segundos (%2$lld de %3$lld)."
           }
         },
         "ru" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Сервер отклонил сохранённое состояние для возобновления. Повтор с начала через %1$lld с (%2$lld из %3$lld)."
           }
         }
@@ -3706,18 +3805,18 @@
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "%@ Harbor retried this download %lld times."
+            "value" : "%1$@ Harbor retried this download %2$lld times."
           }
         },
         "es" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "%1$@ Harbor reintentó esta descarga %2$lld veces."
           }
         },
         "ru" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "%1$@ Повторных попыток Harbor: %2$lld."
           }
         }
@@ -3730,18 +3829,18 @@
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "The connection was interrupted. Retrying in %lld seconds (%lld of %lld)."
+            "value" : "The connection was interrupted. Retrying in %1$lld seconds (%2$lld of %3$lld)."
           }
         },
         "es" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "La conexión se interrumpió. Reintentando en %1$lld segundos (%2$lld de %3$lld)."
           }
         },
         "ru" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Соединение прервано. Повтор через %1$lld с (%2$lld из %3$lld)."
           }
         }
@@ -3754,18 +3853,18 @@
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "The connection was interrupted and URLSession did not provide resumable state. Retrying from the beginning in %lld seconds (%lld of %lld)."
+            "value" : "The connection was interrupted and URLSession did not provide resumable state. Retrying from the beginning in %1$lld seconds (%2$lld of %3$lld)."
           }
         },
         "es" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "La conexión se interrumpió y URLSession no proporcionó un estado reanudable. Reintentando desde el principio en %1$lld segundos (%2$lld de %3$lld)."
           }
         },
         "ru" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Соединение прервано, и URLSession не предоставил данных для возобновления. Повтор с начала через %1$lld с (%2$lld из %3$lld)."
           }
         }
@@ -3892,7 +3991,7 @@
       }
     },
     "download.removeData.unsafePath" : {
-      "comment" : "Error shown when Harbor refuses to move a path outside the download destination to Trash.",
+      "comment" : "Error shown when Harbor refuses to inspect a path outside the download destination.\nError shown when Harbor refuses to move a path outside the download destination to Trash.",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
@@ -4171,6 +4270,22 @@
         }
       }
     },
+    "Edit…" : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Editar…"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Изменить…"
+          }
+        }
+      }
+    },
     "Enable in Safari…" : {
       "localizations" : {
         "es" : {
@@ -4219,6 +4334,22 @@
         }
       }
     },
+    "Enter an HTTP or HTTPS tracker list URL." : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Introduce una URL HTTP o HTTPS de lista de trackers."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Введите HTTP- или HTTPS-адрес списка трекеров."
+          }
+        }
+      }
+    },
     "Enter one header per line using Name: value format." : {
       "localizations" : {
         "es" : {
@@ -4231,6 +4362,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Вводите по одному заголовку в строке в формате Name: value."
+          }
+        }
+      }
+    },
+    "Enter URL of a tracker list." : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Introduce la URL de una lista de trackers."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Введите URL списка трекеров."
           }
         }
       }
@@ -4862,6 +5009,22 @@
         }
       }
     },
+    "Harbor adds these trackers to every torrent you add." : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Harbor añade estos trackers a cada torrent que añadas."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Harbor добавляет эти трекеры в каждый добавляемый торрент."
+          }
+        }
+      }
+    },
     "Harbor can still try this link with yt-dlp." : {
       "comment" : "A message that appears when yt-dlp is used to download a media file.",
       "extractionState" : "stale",
@@ -4975,6 +5138,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Harbor сохранил существующую историю загрузок, но завершённые файлы не найдены. Повторная загрузка не запускалась."
+          }
+        }
+      }
+    },
+    "Harbor removes these trackers from every torrent you add." : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Harbor quita estos trackers de cada torrent que añadas."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Harbor удаляет эти трекеры из каждого добавляемого торрента."
           }
         }
       }
@@ -5123,6 +5302,54 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Импорт"
+          }
+        }
+      }
+    },
+    "Import from File…" : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Importar desde archivo…"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Импортировать из файла…"
+          }
+        }
+      }
+    },
+    "Import from URL" : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Importar desde URL"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Импорт по URL"
+          }
+        }
+      }
+    },
+    "Import from URL…" : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Importar desde URL…"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Импортировать по URL…"
           }
         }
       }
@@ -8229,22 +8456,6 @@
         }
       }
     },
-    "Ratio" : {
-      "localizations" : {
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ratio"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Рейтинг"
-          }
-        }
-      }
-    },
     "ratio" : {
       "localizations" : {
         "es" : {
@@ -8257,6 +8468,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "рейтинг"
+          }
+        }
+      }
+    },
+    "Ratio" : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ratio"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Рейтинг"
           }
         }
       }
@@ -8423,6 +8650,22 @@
         }
       }
     },
+    "Remove" : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eliminar"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Удалить"
+          }
+        }
+      }
+    },
     "Remove #%@ from all downloads? Downloaded files will stay in place." : {
       "localizations" : {
         "es" : {
@@ -8547,6 +8790,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "从列表中删除"
+          }
+        }
+      }
+    },
+    "Remove from Torrents" : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quitar de los torrents"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Удалять из торрентов"
           }
         }
       }
@@ -11311,6 +11570,54 @@
         }
       }
     },
+    "The tracker list is larger than 1 MB." : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La lista de trackers supera 1 MB."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Список трекеров больше 1 МБ."
+          }
+        }
+      }
+    },
+    "The tracker list is not valid UTF-8 text." : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La lista de trackers no es texto UTF-8 válido."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Список трекеров не является корректным текстом UTF-8."
+          }
+        }
+      }
+    },
+    "The tracker list server returned HTTP %d." : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El servidor de la lista de trackers devolvió HTTP %d."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сервер списка трекеров вернул HTTP %d."
+          }
+        }
+      }
+    },
     "The VPN failed. Torrents remain blocked." : {
       "localizations" : {
         "es" : {
@@ -11921,18 +12228,18 @@
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "%d of %d files selected"
+            "value" : "%1$d of %2$d files selected"
           }
         },
         "es" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "%1$d de %2$d archivos seleccionados"
           }
         },
         "ru" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Выбрано файлов: %1$d из %2$d"
           }
         }
@@ -11975,7 +12282,7 @@
       }
     },
     "torrent.session.fileCreationFailed" : {
-      "comment" : "Torrent engine startup detail shown when its session file cannot be created.",
+      "comment" : "Torrent engine startup detail shown when the session file cannot be created.",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
@@ -12142,6 +12449,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Общая скорость отдачи"
+          }
+        }
+      }
+    },
+    "Tracker list URL" : {
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "URL de la lista de trackers"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "URL списка трекеров"
           }
         }
       }
@@ -12989,9 +13312,6 @@
           }
         }
       }
-    },
-    "·" : {
-      "shouldTranslate" : false
     }
   },
   "version" : "1.2"
