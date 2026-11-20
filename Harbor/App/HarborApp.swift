@@ -9,6 +9,7 @@ struct HarborApp: App {
     @StateObject private var updater: AppUpdater
 
     init() {
+        HarborBrowserBridge.registerIfNeeded()
         let defaults = UserDefaults.standard
         if !defaults.bool(forKey: "settingsWindowSizeReset") {
             defaults.removeObject(forKey: "NSWindow Frame com_apple_SwiftUI_Settings_window")
