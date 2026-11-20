@@ -236,6 +236,8 @@ final class DownloadCoordinator: NSObject, @unchecked Sendable {
         let index: Int
         let start: Int64
         let end: Int64
+        let responseURL: URL
+        let entityTag: String
         let task: URLSessionDataTask
         var bytesWritten: Int64 = 0
         var fileHandle: FileHandle?
@@ -1159,17 +1161,6 @@ final class DownloadCoordinator: NSObject, @unchecked Sendable {
         }
     }
 
-    private func ifRangeValidator(for state: OwnedPartialState) -> String? {
-        DirectDownloadRecoveryMetadata(
-            sourceURL: state.sourceURL,
-            entityTag: state.entityTag,
-            lastModified: state.lastModified,
-            expectedBytes: state.expectedBytes,
-            suggestedFilename: state.suggestedFilename,
-            mimeType: state.responseMimeType
-        ).ifRangeValidator
-    }
-
     private func startSegmentsIfUseful(
         primaryKey: TaskKey,
         response: HTTPURLResponse,
@@ -1178,7 +1169,11 @@ final class DownloadCoordinator: NSObject, @unchecked Sendable {
         let acceptsRanges = response.statusCode == 206
             || response.value(forHTTPHeaderField: "Accept-Ranges")?
                 .lowercased().contains("bytes") == true
-        guard acceptsRanges, let request else {
+        // A file can change without changing its length or modification time.
+        guard acceptsRanges, let request, let responseURL = response.url,
+              let entityTag = DownloadHTTPResponseValidator.strongEntityTag(
+                  response.value(forHTTPHeaderField: "ETag")
+              ) else {
             return
         }
 
@@ -1187,6 +1182,9 @@ final class DownloadCoordinator: NSObject, @unchecked Sendable {
                   var context = contexts[primaryKey],
                   singleConnectionDownloadIDs.contains(context.downloadID) == false,
                   let total = context.state.declaredExpectedBytes,
+                  context.state.resumeOffset == 0
+                      || request.value(forHTTPHeaderField: "If-Range") == entityTag,
+                  context.state.responseRangeEnd.map({ $0 == total - 1 }) != false,
                   Self.effectiveSpeedLimit(
                       activeTransferCount: contexts.count,
                       transferSettings: transferSettings,
@@ -1204,20 +1202,21 @@ final class DownloadCoordinator: NSObject, @unchecked Sendable {
                 return []
             }
 
-            let validator = ifRangeValidator(for: context.state)
             for index in 1 ..< boundaries.count - 1 {
                 var segmentRequest = request
                 segmentRequest.setValue(
                     "bytes=\(boundaries[index])-\(boundaries[index + 1] - 1)",
                     forHTTPHeaderField: "Range"
                 )
-                segmentRequest.setValue(validator, forHTTPHeaderField: "If-Range")
+                segmentRequest.setValue(entityTag, forHTTPHeaderField: "If-Range")
                 let task = context.session.dataTask(with: segmentRequest)
                 context.segments.append(
                     SegmentTransfer(
                         index: index,
                         start: boundaries[index],
                         end: boundaries[index + 1],
+                        responseURL: responseURL,
+                        entityTag: entityTag,
                         task: task
                     )
                 )
@@ -1375,16 +1374,14 @@ final class DownloadCoordinator: NSObject, @unchecked Sendable {
     ) -> Bool {
         guard let httpResponse = response as? HTTPURLResponse,
               httpResponse.statusCode == 206,
+              httpResponse.url == segment.responseURL,
               let range = try? DownloadHTTPResponseValidator.validatedPartialContentRange(httpResponse),
               range.start == segment.start,
               range.end == segment.end - 1,
               range.total == state.declaredExpectedBytes else {
             return false
         }
-        guard let validator = ifRangeValidator(for: state) else {
-            return true
-        }
-        return DownloadHTTPResponseValidator.responseValidator(httpResponse, matching: validator)
+        return DownloadHTTPResponseValidator.responseValidator(httpResponse, matching: segment.entityTag)
     }
 
     private func receiveSegmentResponse(

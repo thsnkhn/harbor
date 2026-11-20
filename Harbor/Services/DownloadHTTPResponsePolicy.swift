@@ -177,6 +177,16 @@ enum DownloadHTTPResponseValidator {
             .caseInsensitiveCompare("identity") == .orderedSame
     }
 
+    nonisolated static func strongEntityTag(_ value: String?) -> String? {
+        guard let tag = value?.trimmingCharacters(in: .whitespacesAndNewlines),
+              tag.count >= 2,
+              tag.first == "\"", tag.last == "\"",
+              tag.dropFirst().dropLast().contains("\"") == false else {
+            return nil
+        }
+        return tag
+    }
+
     nonisolated static func responseValidator(
         _ response: HTTPURLResponse,
         matching savedValidator: String

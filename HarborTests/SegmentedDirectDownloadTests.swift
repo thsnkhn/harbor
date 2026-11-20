@@ -83,6 +83,18 @@ final class SegmentedDirectDownloadTests: XCTestCase {
         XCTAssertEqual(SegmentedRangeURLProtocol.capturedHeaders.count, 1)
     }
 
+    func testServerWithoutAFileVersionNeverCombinesIndependentResponses() async throws {
+        SegmentedRangeURLProtocol.reset(provideEntityTag: false)
+        let harness = try makeHarness()
+
+        try harness.coordinator.startDownload(id: harness.id, sourceURL: harness.sourceURL)
+        await fulfillment(of: [harness.completion], timeout: 5)
+
+        let completedURL = try XCTUnwrap(harness.events.completedURL)
+        XCTAssertEqual(try Data(contentsOf: completedURL), SegmentedRangeURLProtocol.payload)
+        XCTAssertEqual(SegmentedRangeURLProtocol.capturedHeaders.count, 1)
+    }
+
     func testSplittingIsOffUnlessEnabled() async throws {
         SegmentedRangeURLProtocol.reset()
         let harness = try makeHarness(splitsDirectDownloads: false)
@@ -241,6 +253,7 @@ nonisolated final class SegmentedRangeURLProtocol: URLProtocol, @unchecked Senda
     private static var segmentStatus = 206
     private static var failingSegmentRange: String?
     private static var segmentResponseDelay: TimeInterval = 0
+    private static var providesEntityTag = true
 
     private let loadingLock = NSLock()
     private var isStopped = false
@@ -253,7 +266,8 @@ nonisolated final class SegmentedRangeURLProtocol: URLProtocol, @unchecked Senda
         advertiseRanges: Bool = true,
         segmentStatusCode: Int = 206,
         failedSegmentRange: String? = nil,
-        segmentDelay: TimeInterval = 0
+        segmentDelay: TimeInterval = 0,
+        provideEntityTag: Bool = true
     ) {
         stateLock.withLock {
             headers = []
@@ -261,6 +275,7 @@ nonisolated final class SegmentedRangeURLProtocol: URLProtocol, @unchecked Senda
             segmentStatus = segmentStatusCode
             failingSegmentRange = failedSegmentRange
             segmentResponseDelay = segmentDelay
+            providesEntityTag = provideEntityTag
         }
     }
 
@@ -274,22 +289,25 @@ nonisolated final class SegmentedRangeURLProtocol: URLProtocol, @unchecked Senda
 
     override func startLoading() {
         let range = request.value(forHTTPHeaderField: "Range")
-        let settings = Self.stateLock.withLock { () -> (Bool, Int, String?, TimeInterval) in
+        let settings = Self.stateLock.withLock {
             Self.headers.append(
                 CapturedHeaders(range: range, ifRange: request.value(forHTTPHeaderField: "If-Range"))
             )
-            return (Self.advertisesRanges, Self.segmentStatus, Self.failingSegmentRange, Self.segmentResponseDelay)
+            return (Self.advertisesRanges, Self.segmentStatus, Self.failingSegmentRange,
+                    Self.segmentResponseDelay, Self.providesEntityTag)
         }
-        let (advertisesRanges, segmentStatus, failingSegmentRange, segmentDelay) = settings
+        let (advertisesRanges, segmentStatus, failingSegmentRange, segmentDelay, providesEntityTag) = settings
         let payload = Self.payload
         let total = Int64(payload.count)
 
         guard let range, let bounds = Self.parse(range) else {
             var headerFields = [
                 "Content-Length": "\(total)",
-                "Content-Type": "application/octet-stream",
-                "ETag": "\"segment-etag\""
+                "Content-Type": "application/octet-stream"
             ]
+            if providesEntityTag {
+                headerFields["ETag"] = "\"segment-etag\""
+            }
             if advertisesRanges {
                 headerFields["Accept-Ranges"] = "bytes"
             }
@@ -300,7 +318,9 @@ nonisolated final class SegmentedRangeURLProtocol: URLProtocol, @unchecked Senda
         let isSegment = bounds.end != nil
         let start = bounds.start
         let end = bounds.end ?? total - 1
-        let body = payload.subdata(in: Int(start) ..< Int(end + 1))
+        // The file was replaced by a different version of the same size.
+        let rangedPayload = providesEntityTag ? payload : Data(repeating: 0xFF, count: payload.count)
+        let body = rangedPayload.subdata(in: Int(start) ..< Int(end + 1))
 
         if isSegment, range == failingSegmentRange {
             DispatchQueue.global().asyncAfter(deadline: .now() + 0.3) { [self] in
@@ -318,13 +338,15 @@ nonisolated final class SegmentedRangeURLProtocol: URLProtocol, @unchecked Senda
             return
         }
 
-        let headerFields = [
+        var headerFields = [
             "Content-Length": "\(body.count)",
             "Content-Range": "bytes \(start)-\(end)/\(total)",
             "Content-Type": "application/octet-stream",
-            "ETag": "\"segment-etag\"",
             "Accept-Ranges": "bytes"
         ]
+        if providesEntityTag {
+            headerFields["ETag"] = "\"segment-etag\""
+        }
         if isSegment, segmentDelay > 0 {
             DispatchQueue.global().asyncAfter(deadline: .now() + segmentDelay) { [self] in
                 respond(status: 206, headers: headerFields, body: body, trickle: false)

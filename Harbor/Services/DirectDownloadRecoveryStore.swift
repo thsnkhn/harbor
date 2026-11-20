@@ -9,13 +9,8 @@ struct DirectDownloadRecoveryMetadata: Codable, Equatable, Sendable {
     let mimeType: String?
 
     nonisolated var ifRangeValidator: String? {
-        let trimmedEntityTag = entityTag?
-            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        if trimmedEntityTag.isEmpty == false,
-           trimmedEntityTag.uppercased().hasPrefix("W/") == false,
-           trimmedEntityTag.first == "\"",
-           trimmedEntityTag.last == "\"" {
-            return trimmedEntityTag
+        if let entityTag = DownloadHTTPResponseValidator.strongEntityTag(entityTag) {
+            return entityTag
         }
 
         let trimmedLastModified = lastModified?
