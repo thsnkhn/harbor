@@ -3,6 +3,8 @@ import SwiftUI
 struct TorrentsSettingsTab: View {
     let settings: AppSettingsStore
 
+    @State private var editingTrackerList: TorrentTrackerListKind?
+
     var body: some View {
         @Bindable var settings = settings
 
@@ -66,7 +68,32 @@ struct TorrentsSettingsTab: View {
                 }
             }
 
+            Section("Trackers") {
+                ForEach(TorrentTrackerListKind.allCases) { kind in
+                    LabeledContent {
+                        HStack(spacing: 8) {
+                            Text(trackerCountText(settings.torrentTrackers(kind).count))
+                                .foregroundStyle(.secondary)
+                                .monospacedDigit()
 
+                            Button("Edit…") {
+                                editingTrackerList = kind
+                            }
+                            .popover(
+                                isPresented: Binding(
+                                    get: { editingTrackerList == kind },
+                                    set: { if !$0 { editingTrackerList = nil } }
+                                ),
+                                arrowEdge: .trailing
+                            ) {
+                                TorrentTrackerListEditor(kind: kind, settings: settings)
+                            }
+                        }
+                    } label: {
+                        Text(kind.title)
+                    }
+                }
+            }
         }
         .formStyle(.grouped)
         .harborSurface()
@@ -76,5 +103,12 @@ struct TorrentsSettingsTab: View {
                 settings.stopSeedingRatio = clampedValue
             }
         }
+    }
+
+    private func trackerCountText(_ count: Int) -> String {
+        if count == 1 {
+            return String(localized: "1 tracker")
+        }
+        return String(format: String(localized: "%d trackers"), count)
     }
 }

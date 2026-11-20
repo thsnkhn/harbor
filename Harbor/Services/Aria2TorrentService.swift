@@ -105,6 +105,8 @@ struct TorrentTransferOptions: Equatable, Sendable {
     let verifyExistingData: Bool
     let selectedFileIndexes: [Int]?
     let downloadsTorrentPiecesSequentially: Bool
+    let addedTrackers: [String]
+    let excludedTrackers: [String]
 
     init(
         downloadLimitBytesPerSecond: Int64?,
@@ -113,7 +115,9 @@ struct TorrentTransferOptions: Equatable, Sendable {
         seedRatioLimit: Double? = nil,
         verifyExistingData: Bool = false,
         selectedFileIndexes: [Int]? = nil,
-        downloadsTorrentPiecesSequentially: Bool = false
+        downloadsTorrentPiecesSequentially: Bool = false,
+        addedTrackers: [String] = [],
+        excludedTrackers: [String] = []
     ) {
         self.downloadLimitBytesPerSecond = downloadLimitBytesPerSecond
         self.uploadLimitBytesPerSecond = uploadLimitBytesPerSecond
@@ -122,6 +126,8 @@ struct TorrentTransferOptions: Equatable, Sendable {
         self.verifyExistingData = verifyExistingData
         self.selectedFileIndexes = selectedFileIndexes
         self.downloadsTorrentPiecesSequentially = downloadsTorrentPiecesSequentially
+        self.addedTrackers = addedTrackers
+        self.excludedTrackers = excludedTrackers
     }
 }
 
@@ -1669,6 +1675,14 @@ actor Aria2TorrentService {
         if let selectedFileIndexes = transferOptions?.selectedFileIndexes,
            let selection = selectFileOption(from: selectedFileIndexes) {
             options["select-file"] = selection
+        }
+
+        // aria2 removes excluded trackers before it adds bt-tracker URLs.
+        if let addedTrackers = transferOptions?.addedTrackers, addedTrackers.isEmpty == false {
+            options["bt-tracker"] = addedTrackers.joined(separator: ",")
+        }
+        if let excludedTrackers = transferOptions?.excludedTrackers, excludedTrackers.isEmpty == false {
+            options["bt-exclude-tracker"] = excludedTrackers.joined(separator: ",")
         }
 
         return options

@@ -133,6 +133,8 @@ final class AppSettingsStore {
         static let proxyPort = "networkProxyPort"
         static let torrentBlocklistEnabled = "torrentBlocklistEnabled"
         static let torrentBlocklistURL = "torrentBlocklistURL"
+        static let torrentAddedTrackers = "torrentAddedTrackers"
+        static let torrentExcludedTrackers = "torrentExcludedTrackers"
     }
 
     static let maxConcurrentDownloadsRange = 1 ... 16
@@ -338,6 +340,14 @@ final class AppSettingsStore {
         didSet {
             userDefaults.set(torrentBlocklistURL, forKey: Keys.torrentBlocklistURL)
         }
+    }
+
+    private(set) var torrentAddedTrackers: [String] {
+        didSet { userDefaults.set(torrentAddedTrackers, forKey: Keys.torrentAddedTrackers) }
+    }
+
+    private(set) var torrentExcludedTrackers: [String] {
+        didSet { userDefaults.set(torrentExcludedTrackers, forKey: Keys.torrentExcludedTrackers) }
     }
 
     private(set) var torrentBlocklistLastUpdated: Date?
@@ -626,6 +636,8 @@ final class AppSettingsStore {
         self.torrentBlocklistURL = userDefaults.string(forKey: Keys.torrentBlocklistURL) ?? ""
         self.torrentBlocklistLastUpdated = nil
         self.torrentBlocklistErrorMessage = nil
+        self.torrentAddedTrackers = userDefaults.stringArray(forKey: Keys.torrentAddedTrackers) ?? []
+        self.torrentExcludedTrackers = userDefaults.stringArray(forKey: Keys.torrentExcludedTrackers) ?? []
 
         refreshNetworkBindingTargets()
     }
@@ -816,6 +828,33 @@ final class AppSettingsStore {
 
     func requestTorrentBlocklistRefresh() {
         torrentBlocklistRefreshRequested?()
+    }
+
+    func torrentTrackers(_ kind: TorrentTrackerListKind) -> [String] {
+        switch kind {
+        case .added: torrentAddedTrackers
+        case .excluded: torrentExcludedTrackers
+        }
+    }
+
+    /// Adds trackers to one list and removes them from the other, so a tracker
+    /// is never both added and removed.
+    func addTorrentTrackers(_ urls: [String], to kind: TorrentTrackerListKind) {
+        switch kind {
+        case .added:
+            torrentAddedTrackers.append(contentsOf: urls.filter { torrentAddedTrackers.contains($0) == false })
+            torrentExcludedTrackers.removeAll(where: urls.contains)
+        case .excluded:
+            torrentExcludedTrackers.append(contentsOf: urls.filter { torrentExcludedTrackers.contains($0) == false })
+            torrentAddedTrackers.removeAll(where: urls.contains)
+        }
+    }
+
+    func removeTorrentTrackers(_ urls: Set<String>, from kind: TorrentTrackerListKind) {
+        switch kind {
+        case .added: torrentAddedTrackers.removeAll(where: urls.contains)
+        case .excluded: torrentExcludedTrackers.removeAll(where: urls.contains)
+        }
     }
 
     func setTorrentBlocklistRefreshing(_ isRefreshing: Bool) {

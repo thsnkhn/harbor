@@ -6608,7 +6608,9 @@ final class DownloadCenter {
             seedRatioLimit: settings.seedingRatioLimit,
             verifyExistingData: item.finishedAt != nil,
             selectedFileIndexes: item.torrentFileSelection?.selectedIndexes,
-            downloadsTorrentPiecesSequentially: item.downloadsTorrentPiecesSequentially
+            downloadsTorrentPiecesSequentially: item.downloadsTorrentPiecesSequentially,
+            addedTrackers: settings.torrentAddedTrackers,
+            excludedTrackers: settings.torrentExcludedTrackers
         )
     }
 
