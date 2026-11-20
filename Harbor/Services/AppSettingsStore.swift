@@ -839,15 +839,22 @@ final class AppSettingsStore {
 
     /// Adds trackers to one list and removes them from the other, so a tracker
     /// is never both added and removed.
-    func addTorrentTrackers(_ urls: [String], to kind: TorrentTrackerListKind) {
+    @discardableResult
+    func addTorrentTrackers(_ urls: [String], to kind: TorrentTrackerListKind) -> Int {
+        var existing = Set(torrentTrackers(kind))
+        let additions = urls.filter { existing.insert($0).inserted }
+        guard additions.isEmpty == false else { return 0 }
+
+        let moved = Set(additions)
         switch kind {
         case .added:
-            torrentAddedTrackers.append(contentsOf: urls.filter { torrentAddedTrackers.contains($0) == false })
-            torrentExcludedTrackers.removeAll(where: urls.contains)
+            torrentAddedTrackers.append(contentsOf: additions)
+            torrentExcludedTrackers.removeAll(where: moved.contains)
         case .excluded:
-            torrentExcludedTrackers.append(contentsOf: urls.filter { torrentExcludedTrackers.contains($0) == false })
-            torrentAddedTrackers.removeAll(where: urls.contains)
+            torrentExcludedTrackers.append(contentsOf: additions)
+            torrentAddedTrackers.removeAll(where: moved.contains)
         }
+        return additions.count
     }
 
     func removeTorrentTrackers(_ urls: Set<String>, from kind: TorrentTrackerListKind) {

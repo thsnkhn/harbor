@@ -140,11 +140,11 @@ struct TorrentTrackerListEditor: View {
     }
 
     private func add(_ urls: [String]) {
-        settings.addTorrentTrackers(urls, to: kind)
+        let count = settings.addTorrentTrackers(urls, to: kind)
         errorMessage = nil
-        message = urls.count == 1
+        message = count == 1
             ? String(localized: "Added 1 tracker.")
-            : String(format: String(localized: "Added %d trackers."), urls.count)
+            : String(format: String(localized: "Added %d trackers."), count)
     }
 
     private func removeSelection() {
@@ -162,7 +162,7 @@ extension TorrentTrackerListKind {
             "Remove from Torrents"
         }
     }
-    
+
     var explanation: LocalizedStringResource {
         switch self {
         case .added:

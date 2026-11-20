@@ -86,6 +86,21 @@ final class TorrentTrackerTests: XCTestCase {
         }
     }
 
+    func testTrackerFileImportRejectsMoreThanOneMegabyte() throws {
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: file) }
+        var data = Data("https://tracker.example/announce\n#".utf8)
+        data.append(Data(repeating: 0x20, count: 1_000_000 - data.count))
+        try data.write(to: file)
+        XCTAssertEqual(try TorrentTrackerListLoader.trackers(fromFileAt: file), ["https://tracker.example/announce"])
+
+        data.append(0x20)
+        try data.write(to: file)
+        XCTAssertThrowsError(try TorrentTrackerListLoader.trackers(fromFileAt: file)) { error in
+            XCTAssertEqual(error as? TorrentTrackerListError, .tooLarge)
+        }
+    }
+
     @MainActor
     func testTrackerListsStayDisjointAndPersist() throws {
         let suiteName = "HarborTests.TorrentTrackerLists.\(UUID().uuidString)"

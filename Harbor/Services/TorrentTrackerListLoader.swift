@@ -15,7 +15,16 @@ enum TorrentTrackerListLoader {
     }
 
     nonisolated static func trackers(fromFileAt url: URL) throws -> [String] {
-        try TorrentTrackerListParser.trackers(from: Data(contentsOf: url))
+        let file = try FileHandle(forReadingFrom: url)
+        defer { try? file.close() }
+        let limit = TorrentTrackerListParser.maximumBytes
+        var data = Data()
+        while data.count <= limit,
+              let chunk = try file.read(upToCount: limit + 1 - data.count),
+              chunk.isEmpty == false {
+            data.append(chunk)
+        }
+        return try TorrentTrackerListParser.trackers(from: data)
     }
 
     nonisolated static func trackers(
@@ -36,18 +45,23 @@ enum TorrentTrackerListLoader {
         configuration.timeoutIntervalForResource = 60
         try proxySettings.apply(to: configuration)
         let session = URLSession(configuration: configuration)
-        defer { session.finishTasksAndInvalidate() }
+        defer { session.invalidateAndCancel() }
 
-        let data: Data
-        let response: URLResponse
+        var data = Data()
         do {
-            (data, response) = try await session.data(from: url)
-        } catch {
+            let (bytes, response) = try await session.bytes(from: url)
+            if let response = response as? HTTPURLResponse,
+               (200 ... 299).contains(response.statusCode) == false {
+                throw TorrentTrackerListError.httpStatus(response.statusCode)
+            }
+            for try await byte in bytes {
+                data.append(byte)
+                if data.count > TorrentTrackerListParser.maximumBytes {
+                    break
+                }
+            }
+        } catch let error as URLError {
             throw proxySettings.downloadError(from: error)
-        }
-        if let response = response as? HTTPURLResponse,
-           (200 ... 299).contains(response.statusCode) == false {
-            throw TorrentTrackerListError.httpStatus(response.statusCode)
         }
         return try TorrentTrackerListParser.trackers(from: data)
     }

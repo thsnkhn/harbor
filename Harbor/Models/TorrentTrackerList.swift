@@ -29,7 +29,7 @@ nonisolated enum TorrentTrackerListError: LocalizedError, Equatable, Sendable {
 }
 
 nonisolated enum TorrentTrackerListParser {
-    static let maximumBytes = 64 * 1024 * 1024
+    static let maximumBytes = 1_000_000
 
     /// Reads one tracker URL per line. Blank lines, `#` comments, and invalid
     /// URLs are skipped; duplicates keep their first position.
