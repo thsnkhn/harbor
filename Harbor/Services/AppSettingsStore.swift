@@ -53,7 +53,8 @@ enum TrafficMode: String, CaseIterable, Identifiable, Sendable {
             globalUploadSpeedLimitBytesPerSecond: limits.upload,
             perDownloadUploadSpeedLimitBytesPerSecond: limits.perUpload,
             perDownloadConnectionCount: customSettings.perDownloadConnectionCount,
-            allowsTorrentUploads: customSettings.allowsTorrentUploads
+            allowsTorrentUploads: customSettings.allowsTorrentUploads,
+            splitsDirectDownloads: customSettings.splitsDirectDownloads
         )
     }
 }
@@ -77,6 +78,7 @@ struct DownloadTransferSettings: Equatable, Sendable {
     let perDownloadUploadSpeedLimitBytesPerSecond: Int64?
     let perDownloadConnectionCount: Int
     var allowsTorrentUploads: Bool = true
+    var splitsDirectDownloads: Bool = false
 }
 
 /// Which port incoming torrent peers reach Harbor on.
@@ -118,6 +120,7 @@ final class AppSettingsStore {
         static let perDownloadUploadSpeedLimitEnabled = "perDownloadUploadSpeedLimitEnabled"
         static let perDownloadUploadSpeedLimitKilobytesPerSecond = "perDownloadUploadSpeedLimitKilobytesPerSecond"
         static let perDownloadConnectionCount = "perDownloadConnectionCount"
+        static let splitsDirectDownloads = "splitsDirectDownloads"
         static let networkBindingSelection = "torrentNetworkBindingSelection"
         static let networkBindingDisplayName = "torrentNetworkBindingDisplayName"
         static let torrentIncomingPortMode = "torrentIncomingPortMode"
@@ -462,6 +465,13 @@ final class AppSettingsStore {
         }
     }
 
+    var splitsDirectDownloads: Bool {
+        didSet {
+            userDefaults.set(splitsDirectDownloads, forKey: Keys.splitsDirectDownloads)
+            notifyTransferSettingsChanged()
+        }
+    }
+
     init(
         userDefaults: UserDefaults = .standard,
         loginItemController: (any LoginItemControlling)? = nil,
@@ -586,6 +596,7 @@ final class AppSettingsStore {
             storedConnectionCount == 0 ? 4 : storedConnectionCount,
             to: Self.perDownloadConnectionCountRange
         )
+        self.splitsDirectDownloads = userDefaults.bool(forKey: Keys.splitsDirectDownloads)
 
         let storedSelection = NetworkBindingSelection(
             storageValue: userDefaults.string(forKey: Keys.networkBindingSelection) ?? ""
@@ -694,7 +705,8 @@ final class AppSettingsStore {
                 perDownloadConnectionCount,
                 to: Self.perDownloadConnectionCountRange
             ),
-            allowsTorrentUploads: seedTorrents
+            allowsTorrentUploads: seedTorrents,
+            splitsDirectDownloads: splitsDirectDownloads
         )
 
         return trafficMode.applying(to: customSettings)

@@ -54,6 +54,7 @@ struct CLISettings {
             "globalUploadSpeedLimitEnabled": boolean(\.globalUploadSpeedLimitEnabled),
             "perDownloadUploadSpeedLimitEnabled": boolean(\.perDownloadUploadSpeedLimitEnabled),
             "torrentBlocklistEnabled": boolean(\.torrentBlocklistEnabled),
+            "splitsDirectDownloads": boolean(\.splitsDirectDownloads),
             "maxConcurrentDownloads": number(\.maxConcurrentDownloads, 1...16),
             "perDownloadConnectionCount": number(\.perDownloadConnectionCount, 1...16),
             "torrentIncomingPort": number(\.torrentIncomingPort, 1024...65535),
